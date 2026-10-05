@@ -1441,6 +1441,9 @@
               </div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:stretch; gap:6px;">
+              <button type="button" class="btn btn-sm btn-primary" onclick="openAddPlayerModal()" title="Manually add a single walk-in or new player to the roster">
+                ➕ Add Player
+              </button>
               <button class="btn btn-sm btn-outline" onclick="handleLoadSampleDemoRoster()" title="Load and import the 54-player sample dataset for testing">
                 🧪 Load 54-Player Sample Demo
               </button>
@@ -1523,6 +1526,9 @@
             <div class="card-subtitle">Check in players, edit Preferred Partner &amp; Win Rate (1–5), or move players across divisions</div>
           </div>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm btn-primary" onclick="openAddPlayerModal()" title="Manually add a new player to the tournament roster">
+              ➕ Add Player
+            </button>
             <div class="level-pills" id="rosterLevelFilterPills">
               <button type="button" class="level-pill active" data-level="ALL" onclick="setRosterFilterLevel('ALL')">All</button>
               <button type="button" class="level-pill pill-int" data-level="Intermediate" onclick="setRosterFilterLevel('Intermediate')"><span class="div-dot"></span>Int</button>
@@ -1574,10 +1580,15 @@
                 Auto-pair preferred partners in 1 click or manually lock in any two players first.
               </div>
             </div>
-            <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; font-weight:600; color:var(--text-secondary); cursor:pointer;">
-              <input id="manualOnlyCheckedInCheckbox" type="checkbox" checked onchange="renderStep2Section()">
-              Only Checked-In players
-            </label>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-outline" onclick="openAddPlayerModal(state.step2Level)" title="Manually add a new player to this division">
+                ➕ Add Player
+              </button>
+              <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; font-weight:600; color:var(--text-secondary); cursor:pointer;">
+                <input id="manualOnlyCheckedInCheckbox" type="checkbox" checked onchange="renderStep2Section()">
+                Only Checked-In players
+              </label>
+            </div>
           </div>
 
           <div id="preferredPartnerAutoPairBar" style="background:var(--brand-primary-soft); border:1px solid var(--brand-primary-border); border-radius:var(--radius-sm); padding:9px 12px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
@@ -1791,9 +1802,9 @@
               📣 Launch Next Matches to Open Courts
             </button>
             <div style="display:inline-flex; gap:4px; background:var(--bg-subtle); padding:3px; border-radius:8px; border:1px solid var(--border-light);" id="step4PoolFilterPills">
-              <button type="button" class="btn btn-sm btn-primary" data-pool="ALL" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('ALL')">All Pools</button>
-              <button type="button" class="btn btn-sm btn-outline" data-pool="Pool A" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('Pool A')">Pool A</button>
-              <button type="button" class="btn btn-sm btn-outline" data-pool="Pool B" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('Pool B')">Pool B</button>
+              <button id="step4PoolFilterAll" type="button" class="btn btn-sm btn-primary" data-pool="ALL" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('ALL')">All Pools</button>
+              <button id="step4PoolFilterA" type="button" class="btn btn-sm btn-outline" data-pool="Pool A" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('Pool A')">Pool A</button>
+              <button id="step4PoolFilterB" type="button" class="btn btn-sm btn-outline" data-pool="Pool B" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('Pool B')">Pool B</button>
             </div>
             <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.78rem; font-weight:600; color:var(--text-secondary); cursor:pointer; background:var(--bg-subtle); padding:5px 9px; border-radius:8px; border:1px solid var(--border-light);">
               <input id="step4HideCompletedCheckbox" type="checkbox" onchange="renderStep4Section()">
@@ -1934,6 +1945,91 @@
         <button id="confirmActionCancelBtn" class="btn btn-outline" onclick="closeAdminConfirmModal()">Cancel</button>
         <button id="confirmActionSubmitBtn" class="btn btn-primary" onclick="executeAdminConfirmAction()">
           Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- ADD NEW PLAYER MODAL                                                 -->
+  <!-- ==================================================================== -->
+  <div id="addPlayerModal" class="modal-backdrop" onclick="if (event.target === this) closeAddPlayerModal();">
+    <div class="modal-card" style="max-width:560px;" onkeydown="if (event.key === 'Enter' && event.target.tagName === 'INPUT') { event.preventDefault(); handleSaveNewPlayer(); }">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div>
+          <h3 style="font-size:1.12rem; font-weight:800; color:var(--text-primary);">➕ Add New Player</h3>
+          <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">
+            Enter player details to add them directly to the tournament roster.
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline" onclick="closeAddPlayerModal()">✕</button>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="form-label" for="addPlayerNameInput">Player Name <span style="color:var(--danger);">*</span></label>
+          <input id="addPlayerNameInput" type="text" class="input" placeholder="e.g., Alex Rivera" autocomplete="off">
+        </div>
+        <div>
+          <label class="form-label" for="addPlayerLdapInput">Google LDAP <span style="color:var(--danger);">*</span></label>
+          <input id="addPlayerLdapInput" type="text" class="input mono" placeholder="e.g., alexrivera" autocomplete="off" oninput="this.value = this.value.toLowerCase().replace(/^@/, '').replace(/\s+/g, '')">
+        </div>
+
+        <div>
+          <label class="form-label" for="addPlayerLevelSelect">Division</label>
+          <select id="addPlayerLevelSelect" class="select" onchange="updateAddPlayerPartnerOptions()">
+            <option value="Intermediate">🟢 Intermediate</option>
+            <option value="Intermediate Plus">🔵 Intermediate Plus</option>
+            <option value="Advanced">🟣 Advanced</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="addPlayerCheckedInSelect">Check-In Status</label>
+          <select id="addPlayerCheckedInSelect" class="select">
+            <option value="true">✓ Checked In (Ready to Play)</option>
+            <option value="false">⏳ Not Checked In</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label" for="addPlayerWinRateSelect">Self-Rated Win Rate (1–5)</label>
+          <select id="addPlayerWinRateSelect" class="select">
+            <option value="">— Unrated —</option>
+            <option value="1">1 — High Win Rate (Top)</option>
+            <option value="2">2 — Above Average</option>
+            <option value="3">3 — Average</option>
+            <option value="4">4 — Developing</option>
+            <option value="5">5 — Low Win Rate (Bottom)</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="addPlayerPairLabelSelect">Top / Bottom Half Label</label>
+          <select id="addPlayerPairLabelSelect" class="select">
+            <option value="">— Unlabeled —</option>
+            <option value="Top">▲ Top</option>
+            <option value="Bottom">▼ Bottom</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label" for="addPlayerPrefPartnerInput">Preferred Partner (LDAP)</label>
+          <input id="addPlayerPrefPartnerInput" type="text" class="input mono" list="addPlayerDivisionLdapDatalist" placeholder="Optional @ldap..." autocomplete="off">
+          <datalist id="addPlayerDivisionLdapDatalist"></datalist>
+        </div>
+        <div>
+          <label class="form-label" for="addPlayerAssignPartnerSelect">Immediate Pair Assignment</label>
+          <select id="addPlayerAssignPartnerSelect" class="select">
+            <option value="">— Leave Unpaired —</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="addPlayerErrorBox" style="display:none; margin-top:12px; padding:9px 12px; border-radius:var(--radius-sm); background:var(--danger-soft); border:1px solid var(--danger-border); color:var(--danger); font-size:0.81rem; font-weight:600;"></div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px; padding-top:14px; border-top:1px solid var(--border-light);">
+        <button type="button" class="btn btn-outline" onclick="closeAddPlayerModal()">Cancel</button>
+        <button id="addPlayerSaveBtn" type="button" class="btn btn-primary" onclick="handleSaveNewPlayer()">
+          💾 Save Player
         </button>
       </div>
     </div>
@@ -3371,6 +3467,85 @@
           });
         }
         saveDb(db);
+        return getTournamentData();
+      }
+
+      function addPlayer(playerInput) {
+        const input = playerInput || {};
+        const cleanLdap = String(input.ldap || input.LDAP || '')
+          .toLowerCase()
+          .replace(/^@/, '')
+          .trim();
+        if (!cleanLdap) {
+          throw new Error('Player Google LDAP is required.');
+        }
+
+        let firstName = String(input.firstName || input.FirstName || '').trim();
+        let lastName = String(input.lastName || input.LastName || '').trim();
+        const fullName = String(input.name || input.fullName || '').trim();
+        if (fullName && !firstName) {
+          const split = splitCombinedPlayerName(fullName);
+          firstName = split.firstName;
+          lastName = split.lastName;
+        }
+        if (!firstName) {
+          firstName = cleanLdap;
+        }
+
+        const level = normalizeLevel(input.level || input.Level || 'Intermediate');
+        const checkedIn = input.checkedIn !== undefined ? Boolean(input.checkedIn) : true;
+        const preferredPartner = String(input.preferredPartner || input.PreferredPartner || '')
+          .toLowerCase()
+          .replace(/^@/, '')
+          .trim();
+        const selfRatedWinRate = normalizeSelfRatedWinRate(
+          input.selfRatedWinRate !== undefined ? input.selfRatedWinRate : input.SelfRatedWinRate
+        );
+        const pairLabel = normalizePairLabel(input.pairLabel || input.PairLabel || '');
+        const partnerLdap = String(input.partnerLdap || '')
+          .toLowerCase()
+          .replace(/^@/, '')
+          .trim();
+
+        const db = loadDb();
+        const existing = db.players.find(
+          (p) => String(p.LDAP || '').toLowerCase().trim() === cleanLdap
+        );
+        if (existing) {
+          throw new Error(
+            `A player with LDAP "@${cleanLdap}" already exists in the roster (${formatPlayerFullName(existing)}, ${existing.Level || 'Intermediate'}).`
+          );
+        }
+
+        let maxNum = db.players.length;
+        db.players.forEach((p) => {
+          const m = String(p.PlayerID || '').match(/^P(\d+)$/i);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (n > maxNum) maxNum = n;
+          }
+        });
+        const newPlayerId = 'P' + String(maxNum + 1).padStart(3, '0');
+
+        db.players.push({
+          PlayerID: newPlayerId,
+          FirstName: firstName,
+          LastName: lastName,
+          LDAP: cleanLdap,
+          Level: level,
+          CheckedIn: checkedIn,
+          CheckedInAt: checkedIn ? new Date().toISOString() : '',
+          PreferredPartner: preferredPartner,
+          SelfRatedWinRate: selfRatedWinRate,
+          PairLabel: pairLabel,
+          PairID: '',
+          RosterStatus: 'ACTIVE',
+        });
+
+        saveDb(db);
+        if (partnerLdap && partnerLdap !== cleanLdap) {
+          return setPlayerPartner(cleanLdap, partnerLdap);
+        }
         return getTournamentData();
       }
 
@@ -4946,6 +5121,7 @@
 
       return {
         getTournamentData,
+        addPlayer,
         importPlayersFromCsv,
         togglePlayerCheckInAdmin,
         checkInAllPlayers,
@@ -6168,6 +6344,200 @@
           }
         },
       });
+    }
+
+    function openAddPlayerModal(defaultLevel) {
+      const modal = document.getElementById('addPlayerModal');
+      if (!modal) return;
+
+      const nameEl = document.getElementById('addPlayerNameInput');
+      const ldapEl = document.getElementById('addPlayerLdapInput');
+      const levelEl = document.getElementById('addPlayerLevelSelect');
+      const checkedInEl = document.getElementById('addPlayerCheckedInSelect');
+      const winRateEl = document.getElementById('addPlayerWinRateSelect');
+      const pairLabelEl = document.getElementById('addPlayerPairLabelSelect');
+      const prefPartnerEl = document.getElementById('addPlayerPrefPartnerInput');
+      const errorBox = document.getElementById('addPlayerErrorBox');
+
+      if (nameEl) nameEl.value = '';
+      if (ldapEl) ldapEl.value = '';
+      const resolvedLevel =
+        defaultLevel && LEVELS.includes(defaultLevel)
+          ? defaultLevel
+          : state.rosterFilterLevel && LEVELS.includes(state.rosterFilterLevel)
+            ? state.rosterFilterLevel
+            : state.selectedLevel && LEVELS.includes(state.selectedLevel)
+              ? state.selectedLevel
+              : 'Intermediate';
+      if (levelEl) levelEl.value = resolvedLevel;
+      if (checkedInEl) checkedInEl.value = 'true';
+      if (winRateEl) winRateEl.value = '';
+      if (pairLabelEl) pairLabelEl.value = '';
+      if (prefPartnerEl) prefPartnerEl.value = '';
+      if (errorBox) {
+        errorBox.style.display = 'none';
+        errorBox.textContent = '';
+      }
+
+      updateAddPlayerPartnerOptions();
+      modal.classList.add('open');
+      setTimeout(() => {
+        if (nameEl) nameEl.focus();
+      }, 40);
+    }
+
+    function closeAddPlayerModal() {
+      const modal = document.getElementById('addPlayerModal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function updateAddPlayerPartnerOptions() {
+      const levelEl = document.getElementById('addPlayerLevelSelect');
+      const assignEl = document.getElementById('addPlayerAssignPartnerSelect');
+      const datalistEl = document.getElementById('addPlayerDivisionLdapDatalist');
+      const selectedLevel = levelEl ? levelEl.value : 'Intermediate';
+      const allPlayers = (state.data && state.data.players) || [];
+      const divPlayers = allPlayers
+        .filter(
+          (p) =>
+            p.Level === selectedLevel &&
+            String(p.RosterStatus || 'ACTIVE').toUpperCase() !== 'WAITLIST'
+        )
+        .sort((a, b) => formatPlayerFullName(a).localeCompare(formatPlayerFullName(b)));
+
+      if (datalistEl) {
+        datalistEl.innerHTML = divPlayers
+          .map(
+            (p) =>
+              `<option value="${escapeHtml(p.LDAP)}">${escapeHtml(formatPlayerFullName(p))} (@${escapeHtml(p.LDAP)})</option>`
+          )
+          .join('');
+      }
+
+      if (assignEl) {
+        const unpairedPlayers = divPlayers.filter((p) => !p.PairID);
+        assignEl.innerHTML =
+          `<option value="">— Leave Unpaired —</option>` +
+          unpairedPlayers
+            .map(
+              (p) =>
+                `<option value="${escapeHtml(p.LDAP)}">Pair with ${escapeHtml(formatPlayerFullName(p))} (@${escapeHtml(p.LDAP)})${p.CheckedIn ? ' ✓' : ' (Not checked in)'}</option>`
+            )
+            .join('');
+      }
+    }
+
+    async function handleSaveNewPlayer() {
+      const nameEl = document.getElementById('addPlayerNameInput');
+      const ldapEl = document.getElementById('addPlayerLdapInput');
+      const levelEl = document.getElementById('addPlayerLevelSelect');
+      const checkedInEl = document.getElementById('addPlayerCheckedInSelect');
+      const winRateEl = document.getElementById('addPlayerWinRateSelect');
+      const pairLabelEl = document.getElementById('addPlayerPairLabelSelect');
+      const prefPartnerEl = document.getElementById('addPlayerPrefPartnerInput');
+      const assignPartnerEl = document.getElementById('addPlayerAssignPartnerSelect');
+      const errorBox = document.getElementById('addPlayerErrorBox');
+      const saveBtn = document.getElementById('addPlayerSaveBtn');
+
+      const showModalError = (msg) => {
+        if (errorBox) {
+          errorBox.textContent = msg;
+          errorBox.style.display = 'block';
+        } else {
+          showToast(msg);
+        }
+      };
+
+      const rawName = String((nameEl && nameEl.value) || '').trim();
+      const cleanLdap = String((ldapEl && ldapEl.value) || '')
+        .toLowerCase()
+        .replace(/^@/, '')
+        .trim();
+
+      if (!rawName) {
+        showModalError('Please enter the player’s name.');
+        if (nameEl) nameEl.focus();
+        return;
+      }
+      if (!cleanLdap) {
+        showModalError('Please enter the player’s Google LDAP.');
+        if (ldapEl) ldapEl.focus();
+        return;
+      }
+
+      const existing = ((state.data && state.data.players) || []).find(
+        (p) => String(p.LDAP || '').toLowerCase().trim() === cleanLdap
+      );
+      if (existing) {
+        showModalError(
+          `A player with LDAP "@${cleanLdap}" is already in the roster (${formatPlayerFullName(existing)}, ${existing.Level || 'Intermediate'}).`
+        );
+        if (ldapEl) ldapEl.focus();
+        return;
+      }
+
+      const level = (levelEl && levelEl.value) || 'Intermediate';
+      const checkedIn = !checkedInEl || checkedInEl.value === 'true';
+      const selfRatedWinRate = (winRateEl && winRateEl.value) || '';
+      const pairLabel = (pairLabelEl && pairLabelEl.value) || '';
+      const preferredPartner = String((prefPartnerEl && prefPartnerEl.value) || '')
+        .toLowerCase()
+        .replace(/^@/, '')
+        .trim();
+      const partnerLdap = String((assignPartnerEl && assignPartnerEl.value) || '')
+        .toLowerCase()
+        .replace(/^@/, '')
+        .trim();
+
+      if (errorBox) errorBox.style.display = 'none';
+      const originalBtnHtml = saveBtn ? saveBtn.innerHTML : '💾 Save Player';
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+      }
+
+      try {
+        let data;
+        try {
+          data = await callBackend('addPlayer', {
+            name: rawName,
+            ldap: cleanLdap,
+            level: level,
+            checkedIn: checkedIn,
+            selfRatedWinRate: selfRatedWinRate,
+            pairLabel: pairLabel,
+            preferredPartner: preferredPartner,
+            partnerLdap: partnerLdap,
+          });
+        } catch (rpcErr) {
+          if (String((rpcErr && rpcErr.message) || '').includes('Unsupported RPC function: addPlayer')) {
+            const safeCsvName = rawName.includes(',') ? `"${rawName.replace(/"/g, '""')}"` : rawName;
+            const csvPayload = `${CSV_TEMPLATE_HEADER}\n${safeCsvName},${cleanLdap},${level},${pairLabel},${selfRatedWinRate},${preferredPartner}`;
+            data = await callBackend('importPlayersFromCsv', csvPayload, false);
+            if (checkedIn) {
+              data = await callBackend('togglePlayerCheckInAdmin', cleanLdap, true);
+            }
+            if (partnerLdap && partnerLdap !== cleanLdap) {
+              data = await callBackend('setPlayerPartner', cleanLdap, partnerLdap);
+            }
+          } else {
+            throw rpcErr;
+          }
+        }
+
+        applyTournamentData(data);
+        closeAddPlayerModal();
+        showToast(
+          `✅ Added ${rawName} (@${cleanLdap}) to ${level}${partnerLdap ? ` and paired with @${partnerLdap}` : ''}!`
+        );
+      } catch (err) {
+        showModalError('Error: ' + err.message);
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = originalBtnHtml;
+        }
+      }
     }
 
     async function handleTogglePlayerCheckIn(ldap, checkedIn) {
@@ -8742,6 +9112,7 @@
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         closeTournamentSettingsDropdown();
+        closeAddPlayerModal();
       }
     });
 
