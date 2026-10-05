@@ -2383,20 +2383,23 @@
         });
         const compareTeams = (a, b) => {
           if (b.Wins !== a.Wins) return b.Wins - a.Wins;
-          if (a.Losses !== b.Losses) return a.Losses - b.Losses;
-          if (Math.abs(b.PointsWinPct - a.PointsWinPct) > 1e-9) return b.PointsWinPct - a.PointsWinPct;
           if (b.PointDiff !== a.PointDiff) return b.PointDiff - a.PointDiff;
           if (b.PointsMade !== a.PointsMade) return b.PointsMade - a.PointsMade;
+          if (a.Losses !== b.Losses) return a.Losses - b.Losses;
+          if (Math.abs(b.PointsWinPct - a.PointsWinPct) > 1e-9) return b.PointsWinPct - a.PointsWinPct;
           return String(a.PairID).localeCompare(String(b.PairID));
         };
-        const compareCrossPoolTeams = (a, b) => {
-          const rankA = Number(a.PoolRank) || 999;
-          const rankB = Number(b.PoolRank) || 999;
-          if (rankA !== rankB) return rankA - rankB;
-          const winPctA = a.GamesPlayed > 0 ? a.Wins / a.GamesPlayed : 0;
-          const winPctB = b.GamesPlayed > 0 ? b.Wins / b.GamesPlayed : 0;
-          if (Math.abs(winPctB - winPctA) > 1e-9) return winPctB - winPctA;
-          return compareTeams(a, b);
+        const orderQualifiersForPlayoffs = (qualsList, poolCount) => {
+          const sorted = qualsList.slice().sort(compareTeams);
+          if (poolCount >= 2 && sorted.length >= 2) {
+            const seed1 = sorted[0];
+            const seed2 = sorted.find((t) => t.PoolID !== seed1.PoolID);
+            if (seed2) {
+              const rest = sorted.filter((t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID);
+              return [seed1, seed2].concat(rest);
+            }
+          }
+          return sorted;
         };
         const result = {};
         LEVELS.forEach((level) => {
@@ -2416,7 +2419,7 @@
           const targetQualifiers = qMap[level] || 6;
           const basePerPool = Math.floor(targetQualifiers / numPools);
           const poolsSorted = {};
-          const qualifiers = [];
+          let qualifiers = [];
           const eliminatedTeams = [];
           const wildcardCandidates = [];
 
@@ -2434,7 +2437,7 @@
             poolsSorted[poolName] = ranked;
           });
 
-          wildcardCandidates.sort(compareCrossPoolTeams);
+          wildcardCandidates.sort(compareTeams);
           const remainingSlots = Math.max(0, targetQualifiers - qualifiers.length);
           wildcardCandidates.forEach((team, idx) => {
             if (idx < remainingSlots) {
@@ -2448,8 +2451,9 @@
             }
           });
 
+          qualifiers = orderQualifiersForPlayoffs(qualifiers, numPools);
           const totalQuals = qualifiers.length;
-          qualifiers.sort(compareCrossPoolTeams).forEach((t, i) => {
+          qualifiers.forEach((t, i) => {
             const overallRank = i + 1;
             t.ProjectedSeed = overallRank;
             if (totalQuals === 6 || targetQualifiers === 6) {
