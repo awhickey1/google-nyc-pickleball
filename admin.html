@@ -8937,20 +8937,24 @@
                       <span>${statusRightHtml}</span>
                     </div>
                     <div class="bracket-team-row ${t1Win || (isBye && m.Team1ID !== 'BYE') ? 'winner' : ''}">
-                      <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:4px; flex-wrap:wrap;" title="${escapeHtml(t1FullName)}">
-                        ${m.Team1Seed ? `<span class="seed-pill">#${m.Team1Seed}</span>` : ''}
-                        <span>${t1FocusHtml}</span>
-                        ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
+                      <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;" title="${escapeHtml(t1FullName)}">
+                        ${m.Team1Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team1Seed}</span>` : ''}
+                        <div style="min-width:0; flex:1;">
+                          <span>${t1FocusHtml}</span>
+                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
+                        </div>
                       </div>
-                      <strong class="mono">${m.Score1 !== '' ? m.Score1 : ''}</strong>
+                      <strong class="mono" style="flex-shrink:0;">${m.Score1 !== '' ? m.Score1 : ''}</strong>
                     </div>
                     <div class="bracket-team-row ${t2Win ? 'winner' : ''}">
-                      <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:4px; flex-wrap:wrap;" title="${escapeHtml(t2FullName)}">
-                        ${m.Team2Seed ? `<span class="seed-pill">#${m.Team2Seed}</span>` : ''}
-                        <span>${t2FocusHtml}</span>
-                        ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
+                      <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;" title="${escapeHtml(t2FullName)}">
+                        ${m.Team2Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team2Seed}</span>` : ''}
+                        <div style="min-width:0; flex:1;">
+                          <span>${t2FocusHtml}</span>
+                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
+                        </div>
                       </div>
-                      <strong class="mono">${m.Score2 !== '' ? m.Score2 : ''}</strong>
+                      <strong class="mono" style="flex-shrink:0;">${m.Score2 !== '' ? m.Score2 : ''}</strong>
                     </div>
                     ${
                       !isBye && !isProjCard

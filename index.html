@@ -4129,20 +4129,24 @@
                       </span>
                     </div>
                     <div class="bracket-team-row ${t1Win || (isBye && m.Team1ID !== 'BYE') ? 'winner' : ''}">
-                      <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
-                        ${m.Team1Seed ? `<span class="seed-pill">#${m.Team1Seed}</span>` : ''}
-                        <span>${formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD')}</span>
-                        ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">★ Bye</span>' : ''}
+                      <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
+                        ${m.Team1Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team1Seed}</span>` : ''}
+                        <div style="min-width:0; flex:1;">
+                          ${formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD')}
+                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ Bye</span>' : ''}
+                        </div>
                       </div>
-                      <strong class="mono">${m.Score1 !== '' ? m.Score1 : ''}</strong>
+                      <strong class="mono" style="flex-shrink:0;">${m.Score1 !== '' ? m.Score1 : ''}</strong>
                     </div>
                     <div class="bracket-team-row ${t2Win ? 'winner' : ''}">
-                      <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
-                        ${m.Team2Seed ? `<span class="seed-pill">#${m.Team2Seed}</span>` : ''}
-                        <span>${formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD')}</span>
-                        ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">★ Bye</span>' : ''}
+                      <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
+                        ${m.Team2Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team2Seed}</span>` : ''}
+                        <div style="min-width:0; flex:1;">
+                          ${formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD')}
+                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ Bye</span>' : ''}
+                        </div>
                       </div>
-                      <strong class="mono">${m.Score2 !== '' ? m.Score2 : ''}</strong>
+                      <strong class="mono" style="flex-shrink:0;">${m.Score2 !== '' ? m.Score2 : ''}</strong>
                     </div>
                     ${
                       canScore
@@ -4305,18 +4309,18 @@
                         </div>
                         <div class="schedule-teams-grid">
                           <div class="schedule-team-line ${t1Win ? 'winner' : ''}">
-                            <div style="min-width:0; overflow:hidden; text-overflow:ellipsis;">
-                              ${g.Team1Seed ? `<span class="seed-pill">#${g.Team1Seed}</span>` : ''}
-                              <span>${formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD')}</span>
+                            <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
+                              ${g.Team1Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${g.Team1Seed}</span>` : ''}
+                              <div style="min-width:0; flex:1;">${formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD')}</div>
                             </div>
-                            <strong class="mono" style="font-size:1rem;">${g.Score1 !== '' ? g.Score1 : '—'}</strong>
+                            <strong class="mono" style="font-size:1rem; flex-shrink:0;">${g.Score1 !== '' ? g.Score1 : '—'}</strong>
                           </div>
                           <div class="schedule-team-line ${t2Win ? 'winner' : ''}">
-                            <div style="min-width:0; overflow:hidden; text-overflow:ellipsis;">
-                              ${g.Team2Seed ? `<span class="seed-pill">#${g.Team2Seed}</span>` : ''}
-                              <span>${formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD')}</span>
+                            <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
+                              ${g.Team2Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${g.Team2Seed}</span>` : ''}
+                              <div style="min-width:0; flex:1;">${formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD')}</div>
                             </div>
-                            <strong class="mono" style="font-size:1rem;">${g.Score2 !== '' ? g.Score2 : '—'}</strong>
+                            <strong class="mono" style="font-size:1rem; flex-shrink:0;">${g.Score2 !== '' ? g.Score2 : '—'}</strong>
                           </div>
                         </div>
                         ${actionBtn}
