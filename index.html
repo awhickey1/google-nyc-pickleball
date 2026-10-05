@@ -1575,6 +1575,7 @@
       lastSyncedPlayerLevel: '',
       playerSubTab: 'overview',
       scheduleFilter: 'ALL',
+      scheduleHideCompleted: false,
       bracketRoundFilter: 'ALL',
       scoringGameId: '',
       editingPairId: '',
@@ -3299,6 +3300,11 @@
       renderPlayerTournamentExplorer();
     }
 
+    function togglePlayerScheduleHideCompleted(checked) {
+      state.scheduleHideCompleted = Boolean(checked);
+      renderPlayerTournamentExplorer();
+    }
+
     function setPlayerBracketRoundFilter(roundKey) {
       state.bracketRoundFilter = roundKey || 'ALL';
       renderPlayerTournamentExplorer();
@@ -4207,6 +4213,18 @@
         games = allLevelGames.filter((g) => g.PoolOrRound === 'Pool B');
       }
 
+      if (state.scheduleHideCompleted) {
+        games = games.filter((g) => g.Status !== 'COMPLETED' && g.Status !== 'BYE');
+      }
+
+      // Sort LIVE/ON_COURT first, then QUEUED/SCHEDULED, then COMPLETED while preserving chronological sequence within each tier
+      games = [...games].sort((a, b) => {
+        const rank = (st) => (st === 'ON_COURT' || st === 'LIVE' ? 0 : st === 'COMPLETED' ? 2 : 1);
+        const rDiff = rank(a.Status) - rank(b.Status);
+        if (rDiff !== 0) return rDiff;
+        return (seqByGameId[a.GameID] || 0) - (seqByGameId[b.GameID] || 0);
+      });
+
       const rrPts = getLevelRoundRobinPoints(level);
       const rrWinBy = getLevelRoundRobinWinBy(level);
       const filterBarHtml = `
@@ -4233,7 +4251,13 @@
                 : ''
             }
           </div>
-          <span class="tag tag-slate">Pool: To ${rrPts} (Win by ${rrWinBy})</span>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.78rem; font-weight:600; color:var(--text-secondary); cursor:pointer; background:var(--bg-subtle); padding:5px 9px; border-radius:8px; border:1px solid var(--border-light); user-select:none;">
+              <input type="checkbox" ${state.scheduleHideCompleted ? 'checked' : ''} onchange="togglePlayerScheduleHideCompleted(this.checked)">
+              Hide Completed
+            </label>
+            <span class="tag tag-slate">Pool: To ${rrPts} (Win by ${rrWinBy})</span>
+          </div>
         </div>
       `;
 
@@ -4242,7 +4266,7 @@
         <div class="schedule-cards-list">
           ${
             games.length === 0
-              ? `<div style="padding:18px; text-align:center; color:var(--text-muted); background:var(--bg-subtle); border-radius:var(--radius-sm);">No matches found for this filter in ${escapeHtml(level)}.</div>`
+              ? `<div style="padding:18px; text-align:center; color:var(--text-muted); background:var(--bg-subtle); border-radius:var(--radius-sm);">${state.scheduleHideCompleted ? `All matches in this view are completed! Uncheck "Hide Completed" to view final scores.` : `No matches found for this filter in ${escapeHtml(level)}.`}</div>`
               : games
                   .map((g) => {
                     const isMine =
