@@ -737,9 +737,8 @@
 
     .bracket-connector-svg {
       position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
+      top: 0;
+      left: 0;
       pointer-events: none;
       z-index: 1;
       overflow: visible;
@@ -781,7 +780,7 @@
     }
 
     .bracket-gold-slot {
-      margin-top: 28px;
+      margin: auto 0;
     }
 
     .bracket-bronze-floating {
@@ -3339,6 +3338,7 @@
         Object.values(statsByPairId).forEach((st) => {
           st.PointDiff = st.PointsMade - st.PointsAllowed;
           st.PointsWinPct = st.TotalPointsPlayed > 0 ? st.PointsMade / st.TotalPointsPlayed : 0;
+          st.WinPct = st.GamesPlayed > 0 ? st.Wins / st.GamesPlayed : 0;
         });
         const compareTeams = (a, b) => {
           if (b.Wins !== a.Wins) return b.Wins - a.Wins;
@@ -3347,6 +3347,15 @@
           if (b.PointDiff !== a.PointDiff) return b.PointDiff - a.PointDiff;
           if (b.PointsMade !== a.PointsMade) return b.PointsMade - a.PointsMade;
           return String(a.PairID).localeCompare(String(b.PairID));
+        };
+        const compareCrossPoolTeams = (a, b) => {
+          const rankA = Number(a.PoolRank) || 999;
+          const rankB = Number(b.PoolRank) || 999;
+          if (rankA !== rankB) return rankA - rankB;
+          const winPctA = a.GamesPlayed > 0 ? a.Wins / a.GamesPlayed : 0;
+          const winPctB = b.GamesPlayed > 0 ? b.Wins / b.GamesPlayed : 0;
+          if (Math.abs(winPctB - winPctA) > 1e-9) return winPctB - winPctA;
+          return compareTeams(a, b);
         };
         const result = {};
         LEVELS.forEach((level) => {
@@ -3379,7 +3388,7 @@
             poolsSorted[poolName] = ranked;
           });
 
-          wildcardCandidates.sort(compareTeams);
+          wildcardCandidates.sort(compareCrossPoolTeams);
           const remainingSlots = Math.max(0, targetQualifiers - qualifiers.length);
           wildcardCandidates.forEach((team, idx) => {
             if (idx < remainingSlots) {
@@ -3393,7 +3402,7 @@
             }
           });
 
-          qualifiers.sort(compareTeams).forEach((t, i) => {
+          qualifiers.sort(compareCrossPoolTeams).forEach((t, i) => {
             const overallRank = i + 1;
             t.ProjectedSeed = overallRank;
             if (targetQualifiers === 6) {
@@ -3784,6 +3793,12 @@
             db.players.forEach((pl) => {
               if (pl.PairID === oldPairId) pl.PairID = '';
             });
+            db.games = db.games.filter((g) => {
+              if (g.Stage === 'ROUND_ROBIN' && (g.Team1ID === oldPairId || g.Team2ID === oldPairId)) {
+                return g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED';
+              }
+              return true;
+            });
             assignDefaultTeamCodes(db.pairs, db.settings, db.players, db.games);
             saveDb(db);
           }
@@ -3805,14 +3820,59 @@
           return getTournamentData();
         }
 
-        const oldPairIds = {};
-        if (p1.PairID) oldPairIds[p1.PairID] = true;
-        if (p2.PairID) oldPairIds[p2.PairID] = true;
-        if (Object.keys(oldPairIds).length > 0) {
-          db.pairs = db.pairs.filter((pr) => !oldPairIds[pr.PairID]);
+        const pair1 = p1.PairID ? db.pairs.find((pr) => pr.PairID === p1.PairID) : null;
+        const pair2 = p2.PairID ? db.pairs.find((pr) => pr.PairID === p2.PairID) : null;
+        const keepPair =
+          pair1 && (pair1.PoolID || !pair2 || !pair2.PoolID)
+            ? pair1
+            : pair2
+            ? pair2
+            : pair1;
+
+        if (keepPair) {
+          const keepPairId = keepPair.PairID;
+          const dropPairId =
+            pair1 && pair2 && pair1.PairID !== pair2.PairID
+              ? keepPairId === pair1.PairID
+                ? pair2.PairID
+                : pair1.PairID
+              : '';
+
           db.players.forEach((pl) => {
-            if (oldPairIds[pl.PairID]) pl.PairID = '';
+            const plLdap = String(pl.LDAP || '').toLowerCase().trim();
+            if (
+              (pl.PairID === keepPairId || (dropPairId && pl.PairID === dropPairId)) &&
+              plLdap !== c1 &&
+              plLdap !== c2
+            ) {
+              pl.PairID = '';
+            }
           });
+
+          if (dropPairId) {
+            db.pairs = db.pairs.filter((pr) => pr.PairID !== dropPairId);
+            db.games = db.games.filter((g) => {
+              if (g.Stage === 'ROUND_ROBIN' && (g.Team1ID === dropPairId || g.Team2ID === dropPairId)) {
+                return g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED';
+              }
+              return true;
+            });
+          }
+
+          keepPair.Player1LDAP = p1.LDAP;
+          keepPair.Player1Name = formatPlayerName(p1);
+          keepPair.Player1Label = p1.PairLabel || '';
+          keepPair.Player2LDAP = p2.LDAP;
+          keepPair.Player2Name = formatPlayerName(p2);
+          keepPair.Player2Label = p2.PairLabel || '';
+          keepPair.PairingMethod = 'Manual';
+
+          p1.PairID = keepPairId;
+          p2.PairID = keepPairId;
+
+          assignDefaultTeamCodes(db.pairs, db.settings, db.players, db.games);
+          saveDb(db);
+          return getTournamentData();
         }
 
         const levelPrefix =
@@ -3845,6 +3905,12 @@
         db.pairs = db.pairs.filter((p) => p.PairID !== pairId);
         db.players.forEach((pl) => {
           if (pl.PairID === pairId) pl.PairID = '';
+        });
+        db.games = db.games.filter((g) => {
+          if (g.Stage === 'ROUND_ROBIN' && (g.Team1ID === pairId || g.Team2ID === pairId)) {
+            return g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED';
+          }
+          return true;
         });
         assignDefaultTeamCodes(db.pairs, db.settings, db.players, db.games);
         saveDb(db);
@@ -4919,6 +4985,73 @@
         return confirmGameScore(gameId, 'coordinator');
       }
 
+      function resetGameScore(gameId, optTargetStatus) {
+        const db = loadDb();
+        const g = db.games.find((x) => x.GameID === gameId);
+        if (!g) throw new Error('Game not found.');
+        if (g.Status === 'BYE') throw new Error('Cannot reset a BYE slot.');
+
+        const prevWinnerId = g.WinnerTeamID;
+        const prevLoserId =
+          prevWinnerId && (prevWinnerId === g.Team1ID || prevWinnerId === g.Team2ID)
+            ? prevWinnerId === g.Team1ID
+              ? g.Team2ID
+              : g.Team1ID
+            : '';
+
+        const targetStatus =
+          optTargetStatus === 'LIVE' || optTargetStatus === 'ON_COURT' ? 'LIVE' : 'SCHEDULED';
+        g.Status = targetStatus;
+        g.Score1 = '';
+        g.Score2 = '';
+        g.SubmittedByTeam = '';
+        g.SubmittedByLDAP = '';
+        g.ConfirmedByLDAP = '';
+        g.WinnerTeamID = '';
+
+        if (g.Stage === 'WINNERS_BRACKET') {
+          const shortMatchLabel = String(g.GameID || '').split('-').pop() || 'Match';
+          if (g.NextGameID && prevWinnerId) {
+            const nextG = db.games.find((x) => x.GameID === g.NextGameID);
+            if (nextG && nextG.Status !== 'COMPLETED') {
+              const placeholderName = `Winner ${shortMatchLabel}`;
+              if (nextG.Team1ID === prevWinnerId) {
+                nextG.Team1ID = '';
+                nextG.Team1Name = placeholderName;
+                nextG.Team1Seed = '';
+              } else if (nextG.Team2ID === prevWinnerId) {
+                nextG.Team2ID = '';
+                nextG.Team2Name = placeholderName;
+                nextG.Team2Seed = '';
+              }
+            }
+          }
+          const loserDestId =
+            g.LoserNextGameID ||
+            (String(g.GameID || '').match(/-(SF1|SF2)$/)
+              ? String(g.GameID).replace(/-(SF1|SF2)$/, '-BRZ')
+              : '');
+          if (loserDestId && prevLoserId) {
+            const brzG = db.games.find((x) => x.GameID === loserDestId);
+            if (brzG && brzG.Status !== 'COMPLETED') {
+              const placeholderName = `Loser ${shortMatchLabel}`;
+              if (brzG.Team1ID === prevLoserId) {
+                brzG.Team1ID = '';
+                brzG.Team1Name = placeholderName;
+                brzG.Team1Seed = '';
+              } else if (brzG.Team2ID === prevLoserId) {
+                brzG.Team2ID = '';
+                brzG.Team2Name = placeholderName;
+                brzG.Team2Seed = '';
+              }
+            }
+          }
+        }
+
+        saveDb(db);
+        return getTournamentData();
+      }
+
       function setTournamentStatus(status) {
         const db = loadDb();
         db.settings.TournamentStatus = status === 'LIVE' ? 'LIVE' : 'CHECK_IN';
@@ -5159,6 +5292,7 @@
         launchNextOpenCourtMatches,
         confirmGameScore,
         adminForceScore,
+        resetGameScore,
         setTournamentStatus,
         updateTargetPointsSettings,
         updatePlayoffFormatSettings,
@@ -5320,6 +5454,7 @@
         submitScore: 'Saving score…',
         adminForceScore: 'Saving score…',
         confirmGameScore: 'Confirming score…',
+        resetGameScore: 'Resetting match…',
         updateGameCourt: 'Assigning court…',
         swapPoolGameTeams: 'Swapping matchup…',
         generatePlayoffBracket: 'Generating bracket…',
@@ -6687,9 +6822,38 @@
       }
     }
 
-    async function handleSetPlayerPartner(ldap, partnerLdap) {
+    async function handleSetPlayerPartner(ldap, partnerLdap, skipConfirm) {
       const c1 = String(ldap || '').toLowerCase().trim();
       const c2 = String(partnerLdap || '').toLowerCase().trim();
+      if (!c2 && !skipConfirm) {
+        const curP1 = (state.data.players || []).find(
+          (p) => String(p.LDAP || '').toLowerCase().trim() === c1
+        );
+        if (curP1 && curP1.PairID) {
+          const pairGames = (state.data.games || []).filter(
+            (g) => g.Team1ID === curP1.PairID || g.Team2ID === curP1.PairID
+          );
+          if (pairGames.length > 0) {
+            const pair = (state.data.pairs || []).find((pr) => pr.PairID === curP1.PairID);
+            const teamName = pair && pair.TeamName ? formatTeamName(pair.TeamName) : curP1.PairID;
+            requestAdminConfirm({
+              title: '⚠️ Unpair Team With Active Schedule?',
+              badgeHtml: `<span class="tag tag-amber">${escapeHtml(teamName)} • ${pairGames.length} Scheduled Match${pairGames.length === 1 ? '' : 'es'}</span>`,
+              bodyHtml: `
+                <p style="margin:0 0 8px;"><strong>${escapeHtml(formatPlayerName(curP1))}</strong>'s team (<strong>${escapeHtml(teamName)}</strong>) already has <strong>${pairGames.length}</strong> match${pairGames.length === 1 ? '' : 'es'} in the schedule.</p>
+                <p style="margin:0; font-size:0.82rem; color:var(--text-secondary);">Tip: To swap in a replacement partner while keeping ${escapeHtml(teamName)}'s pool slot and scheduled matches intact, select the new partner directly from the dropdown instead of unpairing first.</p>
+              `,
+              confirmLabel: 'Unpair & Remove Unplayed Games',
+              confirmBtnClass: 'btn-danger',
+              onConfirm: async () => {
+                await handleSetPlayerPartner(ldap, '', true);
+              },
+            });
+            renderAdminRosterTable();
+            return;
+          }
+        }
+      }
       try {
         let data;
         try {
@@ -7905,6 +8069,11 @@
               <button class="btn btn-sm btn-primary" onclick="handleAdminSaveScore('${escapeHtml(g.GameID)}')">
                 💾 Save Score
               </button>
+              ${
+                g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED' && g.Status !== 'BYE'
+                  ? `<button class="btn btn-sm btn-secondary" title="Reset score &amp; status back to Scheduled" onclick="handleResetGameScore('${escapeHtml(g.GameID)}')">↺ Reset</button>`
+                  : ''
+              }
             </div>
           </td>
         </tr>
@@ -8588,6 +8757,8 @@
 
         svg.setAttribute('width', String(width));
         svg.setAttribute('height', String(height));
+        svg.style.width = width + 'px';
+        svg.style.height = height + 'px';
         svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
         const containerRect = container.getBoundingClientRect();
@@ -8614,7 +8785,7 @@
 
           const tRect = targetCard.getBoundingClientRect();
           const targetX = Math.round(tRect.left - containerRect.left + container.scrollLeft);
-          const targetY = Math.round(
+          let targetY = Math.round(
             tRect.top - containerRect.top + container.scrollTop + tRect.height / 2
           );
 
@@ -8653,6 +8824,9 @@
             );
           } else {
             const pt = srcPoints[0];
+            if (Math.abs(pt.y - targetY) <= 10) {
+              targetY = pt.y;
+            }
             svgParts.push(
               `<path d="M ${pt.x} ${pt.y} L ${midX} ${pt.y} L ${midX} ${targetY} L ${endLineX} ${targetY}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" />`
             );
@@ -8797,6 +8971,11 @@
                             <button type="button" class="btn btn-sm btn-primary" style="flex:1; padding:4px 8px; font-size:0.72rem;" onclick="handleBracketSaveScore('${escapeHtml(m.GameID)}')">
                               💾 Save
                             </button>
+                            ${
+                              m.Status !== 'SCHEDULED' && m.Status !== 'QUEUED'
+                                ? `<button type="button" class="btn btn-sm btn-secondary" style="padding:4px 7px; font-size:0.72rem;" title="Reset score &amp; status back to Scheduled" onclick="handleResetGameScore('${escapeHtml(m.GameID)}')">↺</button>`
+                                : ''
+                            }
                           </div>
                         </div>
                       `
@@ -8917,6 +9096,37 @@
       } catch (err) {
         showToast('Error: ' + err.message);
       }
+    }
+
+    function handleResetGameScore(gameId) {
+      const g = (state.data.games || []).find((x) => x.GameID === gameId);
+      if (!g) return;
+      const t1Name = formatTeamName(g.Team1Name || g.Team1ID || 'Team 1');
+      const t2Name = formatTeamName(g.Team2Name || g.Team2ID || 'Team 2');
+      const hasScore = g.Score1 !== '' || g.Score2 !== '';
+      requestAdminConfirm({
+        title: `↺ Reset Match ${escapeHtml(gameId)}?`,
+        badgeHtml: `<span class="tag tag-amber">${escapeHtml(t1Name)} vs. ${escapeHtml(t2Name)}</span>`,
+        bodyHtml: `
+          <p style="margin:0 0 8px;">This will clear the recorded score${hasScore ? ` (<strong>${escapeHtml(String(g.Score1))} - ${escapeHtml(String(g.Score2))}</strong>)` : ''} and return <strong>${escapeHtml(gameId)}</strong> to <strong>Scheduled</strong> status.</p>
+          ${
+            g.Stage === 'WINNERS_BRACKET'
+              ? '<p style="margin:0; font-size:0.82rem; color:var(--text-secondary);">Any downstream unplayed bracket slot fed by this match will also revert to its placeholder until a new winner is recorded.</p>'
+              : ''
+          }
+        `,
+        confirmLabel: 'Reset Match to Scheduled',
+        confirmBtnClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const data = await callBackend('resetGameScore', gameId, 'SCHEDULED');
+            applyTournamentData(data);
+            showToast(`↺ Reset ${gameId} back to Scheduled`);
+          } catch (err) {
+            showToast('Error: ' + err.message);
+          }
+        },
+      });
     }
 
     function handleToggleTournamentStatus() {
