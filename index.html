@@ -2395,8 +2395,19 @@
             const seed1 = sorted[0];
             const seed2 = sorted.find((t) => t.PoolID !== seed1.PoolID);
             if (seed2) {
-              const rest = sorted.filter((t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID);
-              return [seed1, seed2].concat(rest);
+              const poolXRest = sorted.filter(
+                (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID === seed1.PoolID
+              );
+              const poolYRest = sorted.filter(
+                (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID !== seed1.PoolID
+              );
+              const interleaved = [seed1, seed2];
+              const maxLen = Math.max(poolXRest.length, poolYRest.length);
+              for (let i = 0; i < maxLen; i++) {
+                if (i < poolXRest.length) interleaved.push(poolXRest[i]);
+                if (i < poolYRest.length) interleaved.push(poolYRest[i]);
+              }
+              return interleaved;
             }
           }
           return sorted;
@@ -3361,9 +3372,9 @@
         return '<span class="tag" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Out</span>';
       }
       if (r.ProjectedStatus === 'SEMIFINAL_BYE' || (quals === 6 && seed <= 2)) {
-        return `<span class="tag tag-amber" title="Seed #${seed} — First-Round Semifinal Bye">#${seed} ★ Bye</span>`;
+        return '<span class="tag tag-amber" title="First-Round Semifinal Bye">★ 1st Rd Bye</span>';
       }
-      return `<span class="tag tag-green" title="Playoff Seed #${seed}">#${seed} ✓</span>`;
+      return '<span class="tag tag-green" title="Advances to Playoffs">✓ In Playoffs</span>';
     }
 
     function buildProjectedBracketGamesForLevel(level, winnersSeeds) {
@@ -3376,7 +3387,8 @@
       const seeds = Array.isArray(winnersSeeds) ? winnersSeeds : [];
       const seedLabel = (idx) => {
         const s = seeds[idx];
-        return s && s.TeamName ? formatTeamName(s.TeamName) : `Seed #${idx + 1} (TBD)`;
+        if (s && s.TeamName) return formatTeamName(s.TeamName);
+        return targetQuals === 6 && idx < 2 ? '1st Rd Bye (TBD)' : 'Qualifier TBD';
       };
       const seedId = (idx) => (seeds[idx] && seeds[idx].PairID) || '';
 
@@ -3669,7 +3681,7 @@
           Team1Name: seedLabel(0),
           Team1Seed: 1,
           Team2ID: '',
-          Team2Name: 'Winner (#4 vs #5)',
+          Team2Name: 'Winner QF1',
           Team2Seed: '',
           TargetPoints: targetPts,
           Court: divCourts[0],
@@ -3685,7 +3697,7 @@
           RoundNumber: 2,
           BracketSlot: 2,
           Team1ID: '',
-          Team1Name: 'Winner (#3 vs #6)',
+          Team1Name: 'Winner QF2',
           Team1Seed: '',
           Team2ID: seedId(1),
           Team2Name: seedLabel(1),
@@ -4134,20 +4146,18 @@
                     </div>
                     <div class="bracket-team-row ${t1Win || (isBye && m.Team1ID !== 'BYE') ? 'winner' : ''}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
-                        ${m.Team1Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team1Seed}</span>` : ''}
                         <div style="min-width:0; flex:1;">
                           ${formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD')}
-                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ Bye</span>' : ''}
+                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score1 !== '' ? m.Score1 : ''}</strong>
                     </div>
                     <div class="bracket-team-row ${t2Win ? 'winner' : ''}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
-                        ${m.Team2Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team2Seed}</span>` : ''}
                         <div style="min-width:0; flex:1;">
                           ${formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD')}
-                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ Bye</span>' : ''}
+                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score2 !== '' ? m.Score2 : ''}</strong>
@@ -4283,6 +4293,11 @@
                     }
                     const seqNum = seqByGameId[g.GameID] || '';
                     const isPlayoffGame = g.Stage === 'WINNERS_BRACKET';
+                    const isSixTeamDiv = getLevelQualifiersCount(level) === 6;
+                    const t1HasScheduleBye =
+                      isPlayoffGame && isSixTeamDiv && g.PoolOrRound === 'Semifinal' && Number(g.Team1Seed) === 1;
+                    const t2HasScheduleBye =
+                      isPlayoffGame && isSixTeamDiv && g.PoolOrRound === 'Semifinal' && Number(g.Team2Seed) === 2;
                     const poolOrRoundBadge =
                       g.PoolOrRound === 'Pool A'
                         ? '<span class="tag tag-green" style="font-size:0.68rem; padding:1px 6px;">Pool A</span>'
@@ -4306,15 +4321,19 @@
                         <div class="schedule-teams-grid">
                           <div class="schedule-team-line ${t1Win ? 'winner' : ''}">
                             <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
-                              ${g.Team1Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${g.Team1Seed}</span>` : ''}
-                              <div style="min-width:0; flex:1;">${formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD')}</div>
+                              <div style="min-width:0; flex:1;">
+                                ${formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD')}
+                                ${t1HasScheduleBye ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
+                              </div>
                             </div>
                             <strong class="mono" style="font-size:1rem; flex-shrink:0;">${g.Score1 !== '' ? g.Score1 : '—'}</strong>
                           </div>
                           <div class="schedule-team-line ${t2Win ? 'winner' : ''}">
                             <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
-                              ${g.Team2Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${g.Team2Seed}</span>` : ''}
-                              <div style="min-width:0; flex:1;">${formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD')}</div>
+                              <div style="min-width:0; flex:1;">
+                                ${formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD')}
+                                ${t2HasScheduleBye ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
+                              </div>
                             </div>
                             <strong class="mono" style="font-size:1rem; flex-shrink:0;">${g.Score2 !== '' ? g.Score2 : '—'}</strong>
                           </div>

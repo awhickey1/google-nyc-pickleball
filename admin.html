@@ -3354,8 +3354,19 @@
             const seed1 = sorted[0];
             const seed2 = sorted.find((t) => t.PoolID !== seed1.PoolID);
             if (seed2) {
-              const rest = sorted.filter((t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID);
-              return [seed1, seed2].concat(rest);
+              const poolXRest = sorted.filter(
+                (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID === seed1.PoolID
+              );
+              const poolYRest = sorted.filter(
+                (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID !== seed1.PoolID
+              );
+              const interleaved = [seed1, seed2];
+              const maxLen = Math.max(poolXRest.length, poolYRest.length);
+              for (let i = 0; i < maxLen; i++) {
+                if (i < poolXRest.length) interleaved.push(poolXRest[i]);
+                if (i < poolYRest.length) interleaved.push(poolYRest[i]);
+              }
+              return interleaved;
             }
           }
           return sorted;
@@ -4467,7 +4478,7 @@
             LoserNextGameSlot: '',
           };
 
-          // SF1: Seed #1 (1st-round bye) vs Winner (#4 vs #5)
+          // SF1: Top 1st-round bye vs Winner QF1
           const sf1 = {
             GameID: prefix + '-SF1',
             Level: level,
@@ -4476,10 +4487,10 @@
             RoundNumber: 2,
             BracketSlot: 1,
             Team1ID: s1 ? s1.PairID : '',
-            Team1Name: s1 ? s1.TeamName : 'Seed #1',
+            Team1Name: s1 ? s1.TeamName : '1st Rd Bye (TBD)',
             Team1Seed: 1,
             Team2ID: '',
-            Team2Name: 'Winner (#4 vs #5)',
+            Team2Name: 'Winner QF1',
             Team2Seed: '',
             TargetPoints: targetPoints,
             Court: '',
@@ -4496,7 +4507,7 @@
             LoserNextGameSlot: includeBronze ? 'TEAM1' : '',
           };
 
-          // SF2: Winner (#3 vs #6) vs Seed #2 (1st-round bye)
+          // SF2: Winner QF2 vs Bottom 1st-round bye
           const sf2 = {
             GameID: prefix + '-SF2',
             Level: level,
@@ -4505,10 +4516,10 @@
             RoundNumber: 2,
             BracketSlot: 2,
             Team1ID: '',
-            Team1Name: 'Winner (#3 vs #6)',
+            Team1Name: 'Winner QF2',
             Team1Seed: '',
             Team2ID: s2 ? s2.PairID : '',
-            Team2Name: s2 ? s2.TeamName : 'Seed #2',
+            Team2Name: s2 ? s2.TeamName : '1st Rd Bye (TBD)',
             Team2Seed: 2,
             TargetPoints: targetPoints,
             Court: '',
@@ -7718,13 +7729,10 @@
       ) {
         return '<span class="tag tag-danger">Out</span>';
       }
-      if (targetQualifiers === 6 || team.ProjectedStatus === 'SEMIFINAL_BYE') {
-        if (seed <= 2) {
-          return `<span class="tag tag-amber">Seed #${seed} (1st Rd Bye)</span>`;
-        }
-        return `<span class="tag tag-green">Seed #${seed}</span>`;
+      if (team.ProjectedStatus === 'SEMIFINAL_BYE' || (targetQualifiers === 6 && seed <= 2)) {
+        return '<span class="tag tag-amber">★ 1st Rd Bye</span>';
       }
-      return `<span class="tag tag-green">Seed #${seed}</span>`;
+      return '<span class="tag tag-green">✓ In Playoffs</span>';
     }
 
     function renderPoolsCardsHtml(lvl) {
@@ -8026,8 +8034,15 @@
             }
           `;
 
-      const t1SeedBadge = g.Team1Seed ? `<span class="seed-pill">#${g.Team1Seed}</span>` : '';
-      const t2SeedBadge = g.Team2Seed ? `<span class="seed-pill">#${g.Team2Seed}</span>` : '';
+      const isSixTeamBracketRow = isBracketRow && getDivisionQualifiersCount(g.Level) === 6;
+      const t1SeedBadge =
+        isSixTeamBracketRow && roundLabel === 'Semifinal' && Number(g.Team1Seed) === 1
+          ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span>'
+          : '';
+      const t2SeedBadge =
+        isSixTeamBracketRow && roundLabel === 'Semifinal' && Number(g.Team2Seed) === 2
+          ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span>'
+          : '';
       const t1Html = formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD');
       const t2Html = formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD');
       const targetPts =
@@ -8213,13 +8228,13 @@
         formatExplanationHtml = `
           <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:14px; margin-top:12px;">
             <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; color:var(--brand-primary-hover); margin-bottom:8px;">
-              🏆 6-Team Playoff Structure (Seeds #1 &amp; #2 First-Round Byes${includeBronze ? ' + Bronze Medal Match' : ''})
+              🏆 6-Team Playoff Structure (Top 2 First-Round Byes &amp; Cross-Pool Quarterfinals${includeBronze ? ' + Bronze Medal Match' : ''})
             </div>
             <ul style="font-size:0.84rem; color:var(--text-primary); padding-left:18px; line-height:1.65;">
-              <li><strong>Semifinal 1 (Top 1st-Rd Bye):</strong> <span class="seed-pill">#1</span><strong>${escapeHtml(fmtSeed(s1, 'TBD'))}</strong> waits for Winner of <strong>QF1 (#4 vs #5)</strong></li>
-              <li><strong>Quarterfinal 1:</strong> <span class="seed-pill">#4</span><strong>${escapeHtml(fmtSeed(s4, 'TBD'))}</strong> vs <span class="seed-pill">#5</span><strong>${escapeHtml(fmtSeed(s5, 'BYE'))}</strong></li>
-              <li><strong>Quarterfinal 2:</strong> <span class="seed-pill">#3</span><strong>${escapeHtml(fmtSeed(s3, 'TBD'))}</strong> vs <span class="seed-pill">#6</span><strong>${escapeHtml(fmtSeed(s6, 'BYE'))}</strong></li>
-              <li><strong>Semifinal 2 (Bottom 1st-Rd Bye):</strong> <span class="seed-pill">#2</span><strong>${escapeHtml(fmtSeed(s2, 'TBD'))}</strong> waits for Winner of <strong>QF2 (#3 vs #6)</strong></li>
+              <li><strong>Semifinal 1 (Top 1st-Rd Bye):</strong> <span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span><strong>${escapeHtml(fmtSeed(s1, 'TBD'))}</strong> waits for Winner of <strong>QF1</strong></li>
+              <li><strong>Quarterfinal 1:</strong> <strong>${escapeHtml(fmtSeed(s4, 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s5, 'BYE'))}</strong></li>
+              <li><strong>Quarterfinal 2:</strong> <strong>${escapeHtml(fmtSeed(s3, 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s6, 'BYE'))}</strong></li>
+              <li><strong>Semifinal 2 (Bottom 1st-Rd Bye):</strong> <span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span><strong>${escapeHtml(fmtSeed(s2, 'TBD'))}</strong> waits for Winner of <strong>QF2</strong></li>
               <li><strong>🥇 Championship Final:</strong> Winner SF1 vs Winner SF2</li>
               ${includeBronze ? '<li><strong>🥉 Bronze Medal Match (3rd Place):</strong> Loser SF1 vs Loser SF2</li>' : ''}
             </ul>
@@ -8236,8 +8251,8 @@
               🏆 4-Team Semifinal Playoff Structure${includeBronze ? ' + Bronze Medal Match' : ''}
             </div>
             <ul style="font-size:0.84rem; color:var(--text-primary); padding-left:18px; line-height:1.65;">
-              <li><strong>Semifinal 1:</strong> <span class="seed-pill">#1</span><strong>${escapeHtml(fmtSeed(s1, 'TBD'))}</strong> vs <span class="seed-pill">#4</span><strong>${escapeHtml(fmtSeed(s4, 'BYE'))}</strong></li>
-              <li><strong>Semifinal 2:</strong> <span class="seed-pill">#3</span><strong>${escapeHtml(fmtSeed(s3, 'TBD'))}</strong> vs <span class="seed-pill">#2</span><strong>${escapeHtml(fmtSeed(s2, 'BYE'))}</strong></li>
+              <li><strong>Semifinal 1:</strong> <strong>${escapeHtml(fmtSeed(s1, 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s4, 'BYE'))}</strong></li>
+              <li><strong>Semifinal 2:</strong> <strong>${escapeHtml(fmtSeed(s3, 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s2, 'BYE'))}</strong></li>
               <li><strong>🥇 Championship Final:</strong> Winner SF1 vs Winner SF2</li>
               ${includeBronze ? '<li><strong>🥉 Bronze Medal Match (3rd Place):</strong> Loser SF1 vs Loser SF2</li>' : ''}
             </ul>
@@ -8251,10 +8266,10 @@
               🏆 8-Team Quarterfinal Playoff Structure${includeBronze ? ' + Bronze Medal Match' : ''}
             </div>
             <ul style="font-size:0.84rem; color:var(--text-primary); padding-left:18px; line-height:1.65;">
-              <li><strong>Quarterfinal 1:</strong> <span class="seed-pill">#1</span><strong>${escapeHtml(fmtSeed(s(0), 'TBD'))}</strong> vs <span class="seed-pill">#8</span><strong>${escapeHtml(fmtSeed(s(7), 'BYE'))}</strong></li>
-              <li><strong>Quarterfinal 2:</strong> <span class="seed-pill">#4</span><strong>${escapeHtml(fmtSeed(s(3), 'TBD'))}</strong> vs <span class="seed-pill">#5</span><strong>${escapeHtml(fmtSeed(s(4), 'BYE'))}</strong></li>
-              <li><strong>Quarterfinal 3:</strong> <span class="seed-pill">#3</span><strong>${escapeHtml(fmtSeed(s(2), 'TBD'))}</strong> vs <span class="seed-pill">#6</span><strong>${escapeHtml(fmtSeed(s(5), 'BYE'))}</strong></li>
-              <li><strong>Quarterfinal 4:</strong> <span class="seed-pill">#7</span><strong>${escapeHtml(fmtSeed(s(6), 'BYE'))}</strong> vs <span class="seed-pill">#2</span><strong>${escapeHtml(fmtSeed(s(1), 'TBD'))}</strong></li>
+              <li><strong>Quarterfinal 1:</strong> <strong>${escapeHtml(fmtSeed(s(0), 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s(7), 'BYE'))}</strong></li>
+              <li><strong>Quarterfinal 2:</strong> <strong>${escapeHtml(fmtSeed(s(3), 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s(4), 'BYE'))}</strong></li>
+              <li><strong>Quarterfinal 3:</strong> <strong>${escapeHtml(fmtSeed(s(2), 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s(5), 'BYE'))}</strong></li>
+              <li><strong>Quarterfinal 4:</strong> <strong>${escapeHtml(fmtSeed(s(6), 'BYE'))}</strong> vs <strong>${escapeHtml(fmtSeed(s(1), 'TBD'))}</strong></li>
               <li><strong>🥇 Championship Final:</strong> Winner SF1 vs Winner SF2</li>
               ${includeBronze ? '<li><strong>🥉 Bronze Medal Match (3rd Place):</strong> Loser SF1 vs Loser SF2</li>' : ''}
             </ul>
@@ -8357,7 +8372,8 @@
       const seeds = Array.isArray(winnersSeeds) ? winnersSeeds : [];
       const seedLabel = (idx) => {
         const s = seeds[idx];
-        return s && s.TeamName ? formatTeamWithPlayers(s.PairID, s.TeamName) : `Seed #${idx + 1} (TBD)`;
+        if (s && s.TeamName) return formatTeamWithPlayers(s.PairID, s.TeamName);
+        return targetQuals === 6 && idx < 2 ? '1st Rd Bye (TBD)' : 'Qualifier TBD';
       };
       const seedId = (idx) => (seeds[idx] && seeds[idx].PairID) || '';
       const withDefaultCourts = (gamesList) => {
@@ -8655,7 +8671,7 @@
           Team1Name: seedLabel(0),
           Team1Seed: 1,
           Team2ID: '',
-          Team2Name: 'Winner (#4 vs #5)',
+          Team2Name: 'Winner QF1',
           Team2Seed: '',
           TargetPoints: targetPts,
           Court: '',
@@ -8671,7 +8687,7 @@
           RoundNumber: 2,
           BracketSlot: 2,
           Team1ID: '',
-          Team1Name: 'Winner (#3 vs #6)',
+          Team1Name: 'Winner QF2',
           Team1Seed: '',
           Team2ID: seedId(1),
           Team2Name: seedLabel(1),
@@ -8942,20 +8958,18 @@
                     </div>
                     <div class="bracket-team-row ${t1Win || (isBye && m.Team1ID !== 'BYE') ? 'winner' : ''}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;" title="${escapeHtml(t1FullName)}">
-                        ${m.Team1Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team1Seed}</span>` : ''}
                         <div style="min-width:0; flex:1;">
                           <span>${t1FocusHtml}</span>
-                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
+                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">★ 1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score1 !== '' ? m.Score1 : ''}</strong>
                     </div>
                     <div class="bracket-team-row ${t2Win ? 'winner' : ''}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;" title="${escapeHtml(t2FullName)}">
-                        ${m.Team2Seed ? `<span class="seed-pill" style="flex-shrink:0; margin-top:2px;">#${m.Team2Seed}</span>` : ''}
                         <div style="min-width:0; flex:1;">
                           <span>${t2FocusHtml}</span>
-                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
+                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">★ 1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score2 !== '' ? m.Score2 : ''}</strong>
