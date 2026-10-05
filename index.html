@@ -4399,6 +4399,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       refreshTournamentData(false);
       setInterval(() => {
+        if (_activeSaveCount > 0) return;
         const modalOpen =
           document.getElementById('scoreModal').classList.contains('open') ||
           document.getElementById('editTeamNameModal').classList.contains('open');
