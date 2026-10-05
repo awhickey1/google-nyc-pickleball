@@ -1174,6 +1174,80 @@
         padding: 12px;
       }
     }
+
+    /* Non-disruptive Saving / Loading Bar & Pill */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .saving-bar-track {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+
+    .saving-bar-track.active {
+      opacity: 1;
+    }
+
+    .saving-bar-fill {
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, #34d399, #38bdf8, #34d399, transparent);
+      animation: savingBarGlide 1.15s infinite ease-in-out;
+    }
+
+    @keyframes savingBarGlide {
+      0% { transform: translateX(-110%); }
+      100% { transform: translateX(240%); }
+    }
+
+    .saving-status-pill {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.73rem;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.18);
+      border: 1px solid rgba(52, 211, 153, 0.42);
+      color: #a7f3d0;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .saving-status-pill.active,
+    .saving-status-pill.saved {
+      display: inline-flex;
+    }
+
+    .saving-spinner {
+      width: 11px;
+      height: 11px;
+      border: 2px solid rgba(167, 243, 208, 0.35);
+      border-top-color: #34d399;
+      border-radius: 50%;
+      animation: savingSpin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .saving-status-pill.saved .saving-spinner {
+      display: none;
+    }
+
+    @keyframes savingSpin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -1190,11 +1264,18 @@
         </div>
       </div>
 
-      <div style="flex-shrink: 0;">
+      <div style="display:flex; align-items:center; gap:8px; flex-shrink: 0;">
+        <div id="globalSavingPill" class="saving-status-pill" aria-live="polite">
+          <span class="saving-spinner"></span>
+          <span id="globalSavingText">Saving…</span>
+        </div>
         <button class="btn btn-sm btn-outline" style="background:rgba(255,255,255,0.08);color:#fff;border-color:rgba(255,255,255,0.2);" onclick="refreshTournamentData(true)">
           ↻ Refresh
         </button>
       </div>
+    </div>
+    <div id="globalSavingBar" class="saving-bar-track" aria-hidden="true">
+      <div class="saving-bar-fill"></div>
     </div>
   </header>
 
@@ -2455,8 +2536,72 @@
       return '';
     }
 
+    let _activeSaveCount = 0;
+    let _savingHideTimer = null;
+    let _manualRefreshInFlight = false;
+
+    function getSavingLabelForFn(fnName) {
+      const map = {
+        checkInPlayer: 'Checking in…',
+        updateTeamName: 'Saving team name…',
+        submitGameScore: 'Submitting score…',
+        confirmGameScore: 'Confirming score…',
+        getTournamentData: 'Refreshing…',
+      };
+      return map[fnName] || 'Saving changes…';
+    }
+
+    function showSavingIndicator(label) {
+      clearTimeout(_savingHideTimer);
+      const bar = document.getElementById('globalSavingBar');
+      const pill = document.getElementById('globalSavingPill');
+      const text = document.getElementById('globalSavingText');
+      if (bar) bar.classList.add('active');
+      if (pill) {
+        pill.classList.remove('saved');
+        pill.classList.add('active');
+      }
+      if (text) text.textContent = label || 'Saving…';
+    }
+
+    function completeSavingIndicator(isMutation) {
+      const bar = document.getElementById('globalSavingBar');
+      const pill = document.getElementById('globalSavingPill');
+      const text = document.getElementById('globalSavingText');
+      if (bar) bar.classList.remove('active');
+      if (!isMutation) {
+        if (pill) pill.classList.remove('active', 'saved');
+        return;
+      }
+      if (pill) {
+        pill.classList.remove('active');
+        pill.classList.add('saved');
+      }
+      if (text) text.textContent = '✓ Saved';
+      clearTimeout(_savingHideTimer);
+      _savingHideTimer = setTimeout(() => {
+        if (_activeSaveCount === 0 && pill) {
+          pill.classList.remove('active', 'saved');
+        }
+      }, 950);
+    }
+
+    function hideSavingIndicator() {
+      clearTimeout(_savingHideTimer);
+      const bar = document.getElementById('globalSavingBar');
+      const pill = document.getElementById('globalSavingPill');
+      if (bar) bar.classList.remove('active');
+      if (pill) pill.classList.remove('active', 'saved');
+    }
+
     function callBackend(fnName, ...args) {
-      return new Promise((resolve, reject) => {
+      const isMutation = fnName !== 'getTournamentData';
+      const shouldTrack = isMutation || _manualRefreshInFlight;
+      if (shouldTrack) {
+        _activeSaveCount++;
+        showSavingIndicator(getSavingLabelForFn(fnName));
+      }
+      const rawPromise = new Promise((resolve, reject) => {
         if (window.google && google.script && google.script.run) {
           google.script.run
             .withSuccessHandler(resolve)
@@ -2488,15 +2633,32 @@
           reject(e);
         }
       });
+
+      if (!shouldTrack) return rawPromise;
+      return rawPromise.then(
+        (res) => {
+          _activeSaveCount = Math.max(0, _activeSaveCount - 1);
+          if (_activeSaveCount === 0) completeSavingIndicator(isMutation);
+          return res;
+        },
+        (err) => {
+          _activeSaveCount = Math.max(0, _activeSaveCount - 1);
+          if (_activeSaveCount === 0) hideSavingIndicator();
+          throw err;
+        }
+      );
     }
 
     async function refreshTournamentData(showToastNotification) {
+      if (showToastNotification) _manualRefreshInFlight = true;
       try {
         const data = await callBackend('getTournamentData');
         applyTournamentData(data, !showToastNotification);
         if (showToastNotification) showToast('Refreshed tournament data');
       } catch (err) {
         if (showToastNotification) showToast('Error: ' + err.message);
+      } finally {
+        if (showToastNotification) _manualRefreshInFlight = false;
       }
     }
 
