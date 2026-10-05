@@ -6089,17 +6089,44 @@
     }
 
     async function handleSetPlayerPartner(ldap, partnerLdap) {
+      const c1 = String(ldap || '').toLowerCase().trim();
+      const c2 = String(partnerLdap || '').toLowerCase().trim();
       try {
-        const data = await callBackend('setPlayerPartner', ldap, partnerLdap);
-        applyTournamentData(data);
-        const c1 = String(ldap || '').toLowerCase().trim();
-        const c2 = String(partnerLdap || '').toLowerCase().trim();
-        const p1 = (data.players || []).find((p) => String(p.LDAP || '').toLowerCase().trim() === c1);
+        let data;
+        try {
+          data = await callBackend('setPlayerPartner', ldap, partnerLdap);
+        } catch (rpcErr) {
+          if (String((rpcErr && rpcErr.message) || rpcErr).includes('setPlayerPartner')) {
+            const curP1 = (state.data.players || []).find(
+              (p) => String(p.LDAP || '').toLowerCase().trim() === c1
+            );
+            const curP2 = c2
+              ? (state.data.players || []).find(
+                  (p) => String(p.LDAP || '').toLowerCase().trim() === c2
+                )
+              : null;
+            if (curP1 && curP1.PairID) {
+              data = await callBackend('deletePair', curP1.PairID);
+            }
+            if (curP2 && curP2.PairID && (!curP1 || curP2.PairID !== curP1.PairID)) {
+              data = await callBackend('deletePair', curP2.PairID);
+            }
+            if (c2) {
+              data = await callBackend('createManualPair', ldap, partnerLdap);
+            }
+          } else {
+            throw rpcErr;
+          }
+        }
+        if (data) applyTournamentData(data);
+        const playersList = (data && data.players) || state.data.players || [];
+        const pairsList = (data && data.pairs) || state.data.pairs || [];
+        const p1 = playersList.find((p) => String(p.LDAP || '').toLowerCase().trim() === c1);
         if (!c2) {
           showToast(`Unpaired ${p1 ? formatPlayerName(p1) : '@' + ldap}`);
         } else {
-          const p2 = (data.players || []).find((p) => String(p.LDAP || '').toLowerCase().trim() === c2);
-          const pair = p1 && p1.PairID ? (data.pairs || []).find((pr) => pr.PairID === p1.PairID) : null;
+          const p2 = playersList.find((p) => String(p.LDAP || '').toLowerCase().trim() === c2);
+          const pair = p1 && p1.PairID ? pairsList.find((pr) => pr.PairID === p1.PairID) : null;
           const teamLabel = pair && pair.TeamName ? ` (${formatTeamName(pair.TeamName)})` : '';
           showToast(
             `🤝 Paired ${p1 ? formatPlayerName(p1) : '@' + ldap} & ${p2 ? formatPlayerName(p2) : '@' + partnerLdap}${teamLabel}!`
