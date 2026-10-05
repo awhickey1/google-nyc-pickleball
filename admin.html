@@ -3447,6 +3447,18 @@
         return getTournamentData();
       }
 
+      function generateNextPairId(pairs, levelPrefix) {
+        const usedIds = {};
+        (pairs || []).forEach((pr) => {
+          if (pr && pr.PairID) usedIds[String(pr.PairID).trim()] = true;
+        });
+        let seq = 1;
+        while (usedIds[levelPrefix + '-P' + String(seq).padStart(2, '0')]) {
+          seq++;
+        }
+        return levelPrefix + '-P' + String(seq).padStart(2, '0');
+      }
+
       function createManualPair(ldap1, ldap2) {
         const db = loadDb();
         if (!ldap1 || !ldap2 || ldap1 === ldap2) {
@@ -3466,8 +3478,7 @@
 
         const levelPrefix =
           p1.Level === 'Intermediate' ? 'INT' : p1.Level === 'Intermediate Plus' ? 'INTP' : 'ADV';
-        const existingLvlPairs = db.pairs.filter((pr) => pr.Level === p1.Level);
-        const pairId = levelPrefix + '-P' + String(existingLvlPairs.length + 1).padStart(2, '0');
+        const pairId = generateNextPairId(db.pairs, levelPrefix);
 
         const newPair = {
           PairID: pairId,
@@ -3485,6 +3496,79 @@
           CreatedAt: new Date().toISOString(),
         };
         db.pairs.push(newPair);
+        p1.PairID = pairId;
+        p2.PairID = pairId;
+        assignDefaultTeamCodes(db.pairs, db.settings, db.players, db.games);
+        saveDb(db);
+        return getTournamentData();
+      }
+
+      function setPlayerPartner(ldap, partnerLdap) {
+        const db = loadDb();
+        const c1 = String(ldap || '').toLowerCase().trim();
+        const c2 = String(partnerLdap || '').toLowerCase().trim();
+        if (!c1) throw new Error('Player LDAP is required.');
+        if (c1 === c2) throw new Error('A player cannot be paired with themselves.');
+
+        const p1 = db.players.find((x) => String(x.LDAP || '').toLowerCase().trim() === c1);
+        if (!p1) throw new Error('Player not found.');
+
+        if (!c2) {
+          if (p1.PairID) {
+            const oldPairId = p1.PairID;
+            db.pairs = db.pairs.filter((pr) => pr.PairID !== oldPairId);
+            db.players.forEach((pl) => {
+              if (pl.PairID === oldPairId) pl.PairID = '';
+            });
+            assignDefaultTeamCodes(db.pairs, db.settings, db.players, db.games);
+            saveDb(db);
+          }
+          return getTournamentData();
+        }
+
+        const p2 = db.players.find((x) => String(x.LDAP || '').toLowerCase().trim() === c2);
+        if (!p2) throw new Error('Selected partner not found.');
+        if (
+          String(p1.RosterStatus || 'ACTIVE') === 'WAITLIST' ||
+          String(p2.RosterStatus || 'ACTIVE') === 'WAITLIST'
+        ) {
+          throw new Error('Activate waitlist players before pairing.');
+        }
+        if (p1.Level !== p2.Level) {
+          throw new Error('Both players must be in the same division.');
+        }
+        if (p1.PairID && p1.PairID === p2.PairID) {
+          return getTournamentData();
+        }
+
+        const oldPairIds = {};
+        if (p1.PairID) oldPairIds[p1.PairID] = true;
+        if (p2.PairID) oldPairIds[p2.PairID] = true;
+        if (Object.keys(oldPairIds).length > 0) {
+          db.pairs = db.pairs.filter((pr) => !oldPairIds[pr.PairID]);
+          db.players.forEach((pl) => {
+            if (oldPairIds[pl.PairID]) pl.PairID = '';
+          });
+        }
+
+        const levelPrefix =
+          p1.Level === 'Intermediate' ? 'INT' : p1.Level === 'Intermediate Plus' ? 'INTP' : 'ADV';
+        const pairId = generateNextPairId(db.pairs, levelPrefix);
+        db.pairs.push({
+          PairID: pairId,
+          Level: p1.Level,
+          PoolID: '',
+          Player1LDAP: p1.LDAP,
+          Player1Name: formatPlayerName(p1),
+          Player1Label: p1.PairLabel || '',
+          Player2LDAP: p2.LDAP,
+          Player2Name: formatPlayerName(p2),
+          Player2Label: p2.PairLabel || '',
+          TeamName: '',
+          Seed: '',
+          PairingMethod: 'Manual',
+          CreatedAt: new Date().toISOString(),
+        });
         p1.PairID = pairId;
         p2.PairID = pairId;
         assignDefaultTeamCodes(db.pairs, db.settings, db.players, db.games);
@@ -4790,6 +4874,7 @@
         togglePlayerCheckInAdmin,
         checkInAllPlayers,
         setPlayerPairLabel,
+        setPlayerPartner,
         setPlayerPreferredPartner,
         setPlayerSelfRatedWinRate,
         setPlayerLevel,
@@ -5562,6 +5647,7 @@
       tbody.innerHTML = filtered
         .map((p) => {
           const pair = p.PairID ? pairById[p.PairID] : null;
+          const myLdapLower = String(p.LDAP || '').toLowerCase().trim();
           const wr = String(p.SelfRatedWinRate || '').trim();
           const prefVal = String(p.PreferredPartner || '').trim();
           const prefLdapKey = prefVal.replace(/^@+/, '').toLowerCase();
@@ -5571,10 +5657,82 @@
             String(prefPartnerObj.PreferredPartner || '')
               .replace(/^@+/, '')
               .toLowerCase()
-              .trim() === String(p.LDAP || '').toLowerCase().trim();
+              .trim() === myLdapLower;
           const prefResolvedHtml = prefPartnerObj
             ? `<span class="tag ${isMutualPref ? 'tag-green' : 'tag-slate'}" style="font-size:0.7rem;" title="${isMutualPref ? 'Mutual preferred partner match' : 'Requested partner in roster'}">${isMutualPref ? '🤝' : '→'} ${escapeHtml(formatPlayerName(prefPartnerObj))}</span>`
             : '';
+
+          const currentPartnerLdap = pair
+            ? String(pair.Player1LDAP || '').toLowerCase().trim() === myLdapLower
+              ? String(pair.Player2LDAP || '').toLowerCase().trim()
+              : String(pair.Player1LDAP || '').toLowerCase().trim()
+            : '';
+          const currentPartnerObj = currentPartnerLdap ? playerByLdap[currentPartnerLdap] : null;
+          const currentPartnerName = currentPartnerObj
+            ? formatPlayerName(currentPartnerObj)
+            : pair
+              ? String(pair.Player1LDAP || '').toLowerCase().trim() === myLdapLower
+                ? pair.Player2Name
+                : pair.Player1Name
+              : '';
+
+          const divisionCandidates = (state.data.players || []).filter(
+            (cand) =>
+              !isWaitlistPlayer(cand) &&
+              cand.Level === p.Level &&
+              String(cand.LDAP || '').toLowerCase().trim() !== myLdapLower
+          );
+
+          const isPrefCandidate = (cand) => {
+            const cLdap = String(cand.LDAP || '').toLowerCase().trim();
+            const cPref = String(cand.PreferredPartner || '').replace(/^@+/, '').toLowerCase().trim();
+            return (prefLdapKey && cLdap === prefLdapKey) || (cPref && cPref === myLdapLower);
+          };
+
+          const unpairedCandidates = divisionCandidates
+            .filter((cand) => !cand.PairID)
+            .sort((a, b) => {
+              const aPref = isPrefCandidate(a) ? 1 : 0;
+              const bPref = isPrefCandidate(b) ? 1 : 0;
+              if (aPref !== bPref) return bPref - aPref;
+              const aChk = a.CheckedIn ? 1 : 0;
+              const bChk = b.CheckedIn ? 1 : 0;
+              if (aChk !== bChk) return bChk - aChk;
+              return formatPlayerName(a).localeCompare(formatPlayerName(b));
+            });
+
+          const pairedCandidates = divisionCandidates
+            .filter(
+              (cand) =>
+                cand.PairID && String(cand.LDAP || '').toLowerCase().trim() !== currentPartnerLdap
+            )
+            .sort((a, b) => formatPlayerName(a).localeCompare(formatPlayerName(b)));
+
+          const currentPartnerOptHtml = pair && currentPartnerLdap
+            ? `<option value="${escapeHtml(currentPartnerLdap)}" selected>🤝 ${escapeHtml(currentPartnerName)} (@${escapeHtml(currentPartnerLdap)})</option>`
+            : '';
+
+          const unpairedGroupHtml = unpairedCandidates.length
+            ? `<optgroup label="Available Unpaired (${unpairedCandidates.length})">${unpairedCandidates
+                .map((cand) => {
+                  const prefTag = isPrefCandidate(cand) ? '⭐ Pref: ' : '';
+                  const chkIcon = cand.CheckedIn ? '✓' : '⏳';
+                  const wrSuffix = cand.SelfRatedWinRate ? ` • WR ${cand.SelfRatedWinRate}/5` : '';
+                  return `<option value="${escapeHtml(cand.LDAP)}">${prefTag}${chkIcon} ${escapeHtml(formatPlayerName(cand))} (@${escapeHtml(cand.LDAP)})${escapeHtml(wrSuffix)}</option>`;
+                })
+                .join('')}</optgroup>`
+            : '';
+
+          const pairedGroupHtml = pairedCandidates.length
+            ? `<optgroup label="Already Paired (Switch Partner)">${pairedCandidates
+                .map((cand) => {
+                  const candPair = pairById[cand.PairID];
+                  const teamLabel = candPair ? formatTeamName(candPair.TeamName) : 'Paired';
+                  return `<option value="${escapeHtml(cand.LDAP)}">🔄 ${escapeHtml(formatPlayerName(cand))} (@${escapeHtml(cand.LDAP)}) — ${escapeHtml(teamLabel)}</option>`;
+                })
+                .join('')}</optgroup>`
+            : '';
+
           return `
             <tr>
               <td>
@@ -5628,13 +5786,27 @@
                 </select>
               </td>
               <td>
-                ${
-                  pair
-                    ? `<span class="tag tag-blue">${escapeHtml(formatTeamName(pair.TeamName))}</span> ${
-                        pair.PoolID ? `<span class="tag tag-slate">${escapeHtml(pair.PoolID)}</span>` : ''
-                      }`
-                    : '<span style="color:var(--text-muted); font-size:0.8rem;">Unpaired</span>'
-                }
+                <div style="display:flex; flex-direction:column; gap:4px; min-width:195px;">
+                  <select
+                    class="select"
+                    style="width:205px; padding:4px 8px; font-size:0.78rem; ${pair ? 'font-weight:700; border-color:var(--accent-blue-border); background:var(--accent-blue-soft);' : ''}"
+                    onchange="handleSetPlayerPartner('${escapeHtml(p.LDAP)}', this.value)"
+                    title="Select a player in ${escapeHtml(p.Level)} to pair with ${escapeHtml(formatPlayerName(p))}"
+                  >
+                    <option value="" ${!pair ? 'selected' : ''}>— Unpaired —</option>
+                    ${currentPartnerOptHtml}
+                    ${unpairedGroupHtml}
+                    ${pairedGroupHtml}
+                  </select>
+                  ${
+                    pair
+                      ? `<div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                           <span class="tag tag-blue" style="font-size:0.68rem; padding:1px 6px;" title="Team Name">🏓 ${escapeHtml(formatTeamName(pair.TeamName))}</span>
+                           ${pair.PoolID ? `<span class="tag tag-slate" style="font-size:0.68rem; padding:1px 6px;">${escapeHtml(pair.PoolID)}</span>` : ''}
+                         </div>`
+                      : ''
+                  }
+                </div>
               </td>
               <td>
                 <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -5913,6 +6085,29 @@
         showToast(`Updated preferred partner for @${ldap}`);
       } catch (err) {
         showToast('Error: ' + err.message);
+      }
+    }
+
+    async function handleSetPlayerPartner(ldap, partnerLdap) {
+      try {
+        const data = await callBackend('setPlayerPartner', ldap, partnerLdap);
+        applyTournamentData(data);
+        const c1 = String(ldap || '').toLowerCase().trim();
+        const c2 = String(partnerLdap || '').toLowerCase().trim();
+        const p1 = (data.players || []).find((p) => String(p.LDAP || '').toLowerCase().trim() === c1);
+        if (!c2) {
+          showToast(`Unpaired ${p1 ? formatPlayerName(p1) : '@' + ldap}`);
+        } else {
+          const p2 = (data.players || []).find((p) => String(p.LDAP || '').toLowerCase().trim() === c2);
+          const pair = p1 && p1.PairID ? (data.pairs || []).find((pr) => pr.PairID === p1.PairID) : null;
+          const teamLabel = pair && pair.TeamName ? ` (${formatTeamName(pair.TeamName)})` : '';
+          showToast(
+            `🤝 Paired ${p1 ? formatPlayerName(p1) : '@' + ldap} & ${p2 ? formatPlayerName(p2) : '@' + partnerLdap}${teamLabel}!`
+          );
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message);
+        renderAdminRosterTable();
       }
     }
 
