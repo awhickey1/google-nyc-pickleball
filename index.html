@@ -1575,7 +1575,6 @@
       lastSyncedPlayerLevel: '',
       playerSubTab: 'overview',
       scheduleFilter: 'ALL',
-      scheduleHideCompleted: false,
       bracketRoundFilter: 'ALL',
       scoringGameId: '',
       editingPairId: '',
@@ -3300,11 +3299,6 @@
       renderPlayerTournamentExplorer();
     }
 
-    function togglePlayerScheduleHideCompleted(checked) {
-      state.scheduleHideCompleted = Boolean(checked);
-      renderPlayerTournamentExplorer();
-    }
-
     function setPlayerBracketRoundFilter(roundKey) {
       state.bracketRoundFilter = roundKey || 'ALL';
       renderPlayerTournamentExplorer();
@@ -4201,20 +4195,10 @@
       const myGamesCount = highlightPairId
         ? allLevelGames.filter((g) => g.Team1ID === highlightPairId || g.Team2ID === highlightPairId).length
         : 0;
-      const poolAGamesCount = allLevelGames.filter((g) => g.PoolOrRound === 'Pool A').length;
-      const poolBGamesCount = allLevelGames.filter((g) => g.PoolOrRound === 'Pool B').length;
 
       let games = allLevelGames;
       if (state.scheduleFilter === 'MINE' && highlightPairId) {
         games = allLevelGames.filter((g) => g.Team1ID === highlightPairId || g.Team2ID === highlightPairId);
-      } else if (state.scheduleFilter === 'Pool A') {
-        games = allLevelGames.filter((g) => g.PoolOrRound === 'Pool A');
-      } else if (state.scheduleFilter === 'Pool B') {
-        games = allLevelGames.filter((g) => g.PoolOrRound === 'Pool B');
-      }
-
-      if (state.scheduleHideCompleted) {
-        games = games.filter((g) => g.Status !== 'COMPLETED' && g.Status !== 'BYE');
       }
 
       // Sort LIVE/ON_COURT first, then QUEUED/SCHEDULED, then COMPLETED while preserving chronological sequence within each tier
@@ -4240,24 +4224,8 @@
                   </button>`
                 : ''
             }
-            ${
-              poolAGamesCount > 0 && poolBGamesCount > 0
-                ? `<button type="button" class="btn btn-sm ${state.scheduleFilter === 'Pool A' ? 'btn-primary' : 'btn-outline'}" onclick="setPlayerScheduleFilter('Pool A')">
-                    Pool A (${poolAGamesCount})
-                  </button>
-                  <button type="button" class="btn btn-sm ${state.scheduleFilter === 'Pool B' ? 'btn-primary' : 'btn-outline'}" onclick="setPlayerScheduleFilter('Pool B')">
-                    Pool B (${poolBGamesCount})
-                  </button>`
-                : ''
-            }
           </div>
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.78rem; font-weight:600; color:var(--text-secondary); cursor:pointer; background:var(--bg-subtle); padding:5px 9px; border-radius:8px; border:1px solid var(--border-light); user-select:none;">
-              <input type="checkbox" ${state.scheduleHideCompleted ? 'checked' : ''} onchange="togglePlayerScheduleHideCompleted(this.checked)">
-              Hide Completed
-            </label>
-            <span class="tag tag-slate">Pool: To ${rrPts} (Win by ${rrWinBy})</span>
-          </div>
+          <span class="tag tag-slate">Pool: To ${rrPts} (Win by ${rrWinBy})</span>
         </div>
       `;
 
@@ -4266,7 +4234,7 @@
         <div class="schedule-cards-list">
           ${
             games.length === 0
-              ? `<div style="padding:18px; text-align:center; color:var(--text-muted); background:var(--bg-subtle); border-radius:var(--radius-sm);">${state.scheduleHideCompleted ? `All matches in this view are completed! Uncheck "Hide Completed" to view final scores.` : `No matches found for this filter in ${escapeHtml(level)}.`}</div>`
+              ? `<div style="padding:18px; text-align:center; color:var(--text-muted); background:var(--bg-subtle); border-radius:var(--radius-sm);">No matches found for this filter in ${escapeHtml(level)}.</div>`
               : games
                   .map((g) => {
                     const isMine =
