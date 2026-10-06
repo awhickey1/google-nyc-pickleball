@@ -8301,16 +8301,19 @@
     function renderUnpairedCheckedInBannerHtml(lvl) {
       const unpaired = getUnpairedCheckedInPlayers(lvl);
       if (!unpaired.length) return '';
-      const namesList = unpaired
+      const previewList = unpaired
+        .slice(0, 4)
         .map((p) => `${escapeHtml(formatPlayerName(p))} (@${escapeHtml(p.LDAP)})`)
         .join(', ');
+      const extraSuffix =
+        unpaired.length > 4 ? ` + ${unpaired.length - 4} more` : '';
       return `
-        <div class="alert-banner alert-danger" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+        <div style="margin-bottom:12px; padding:10px 14px; border-radius:var(--radius-sm); background:var(--danger-soft); border:1px solid var(--danger-border); color:var(--danger); font-size:0.83rem; font-weight:500; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
           <div>
-            <strong>⚠️ ${unpaired.length} Checked-In Player${unpaired.length === 1 ? '' : 's'} Still Unpaired in ${escapeHtml(lvl)}:</strong>
-            <span>${namesList} — pair them in Step 2 before generating Pool Play so no arrived player is left out.</span>
+            <strong style="font-weight:700;">⚠️ ${unpaired.length} Checked-In Player${unpaired.length === 1 ? '' : 's'} Unpaired (${escapeHtml(lvl)}):</strong>
+            ${previewList}${extraSuffix}. Pair in Step 2 before starting Pool Play.
           </div>
-          <button type="button" class="btn btn-sm btn-danger" onclick="setAdminStep('step2')">
+          <button type="button" class="btn btn-sm btn-danger" style="padding:4px 10px; font-size:0.76rem; white-space:nowrap;" onclick="setAdminStep('step2')">
             🤝 Pair in Step 2 →
           </button>
         </div>
