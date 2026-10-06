@@ -1458,54 +1458,37 @@
     <!-- ================================================================== -->
     <div id="adminStep1Section">
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-header" id="csvSetupCardHeader">
-          <div>
-            <div class="card-title">📥 Roster Setup &amp; Player CSV Import</div>
-            <div class="card-subtitle">
-              Columns: <code class="mono">name, ldap, division, top_bottom, self_skill, preferred_partner</code> (1 = High Win Rate, 5 = Low Win Rate)
-            </div>
-          </div>
-          <div style="display:flex; flex-direction:row; align-items:center; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-sm btn-outline" onclick="handleLoadSampleDemoRoster()" title="Load and import the 54-player sample dataset for testing">
-              🧪 Load 54-Player Sample Demo
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="handleWipeTournamentClean()" title="Clear all players, pairs, pools, and games to start a new tournament">
-              🗑️ Wipe All / New Tournament
-            </button>
-            <button id="csvSetupToggleBtn" type="button" class="btn btn-sm btn-outline" onclick="toggleCsvSetupCard()" title="Minimize or expand CSV Import panel">
-              ▲ Minimize
-            </button>
-          </div>
+        <div class="card-header" id="csvSetupCardHeader" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <div class="card-title">📥 Roster Setup &amp; Player CSV Import</div>
+          <button id="csvSetupToggleBtn" type="button" class="btn btn-sm btn-outline" onclick="toggleCsvSetupCard()" title="Minimize or expand CSV Import panel">
+            ▲ Minimize
+          </button>
         </div>
 
         <div id="csvSetupCardBody">
+          <!-- Primary Action Row -->
+          <div style="display:flex; flex-direction:row; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <input type="file" id="csvFileInput" accept=".csv,.txt" style="display:none;" onchange="handleCsvFileSelected(event)">
+            <button type="button" class="btn btn-sm btn-blue" onclick="document.getElementById('csvFileInput').click()" title="Upload a player roster .csv file from your computer">
+              📂 Upload .CSV File...
+            </button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="handleLoadSampleDemoRoster()" title="Load and import the 54-player sample dataset for testing">
+              🧪 Load 54-Player Sample Demo
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" onclick="handleWipeTournamentClean()" title="Clear all players, pairs, pools, and games to start a new tournament">
+              🗑️ Wipe All / New Tournament
+            </button>
+          </div>
+
           <!-- Import Mode Setting -->
-          <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:9px 12px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:9px 12px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
             <label style="display:flex; align-items:center; gap:8px; font-size:0.82rem; font-weight:600; color:var(--text-primary); cursor:pointer;">
               <input id="csvReplaceExistingCheckbox" type="checkbox" checked>
               <span>Replace existing roster &amp; reset pairs/games <span style="font-weight:400; color:var(--text-secondary);">(uncheck to merge into current roster)</span></span>
             </label>
           </div>
 
-          <!-- Option 1: Upload a .CSV File directly from computer -->
-          <div style="background:#f8fafc; border:1px dashed var(--border-strong); border-radius:var(--radius-sm); padding:11px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <div>
-              <div style="font-size:0.82rem; font-weight:700; color:var(--text-primary);">
-                Upload a <code class="mono">.csv</code> File from Your Computer
-              </div>
-              <div id="csvLoadedFileStatus" style="font-size:0.76rem; color:var(--text-secondary); margin-top:2px;">
-                Prompts you to confirm before importing into the database.
-              </div>
-            </div>
-            <div>
-              <input type="file" id="csvFileInput" accept=".csv,.txt" style="display:none;" onchange="handleCsvFileSelected(event)">
-              <button class="btn btn-sm btn-blue" onclick="document.getElementById('csvFileInput').click()">
-                📂 Upload .CSV File...
-              </button>
-            </div>
-          </div>
-
-          <!-- Option 2: Collapsible Paste or Edit CSV Text directly -->
+          <!-- Collapsible Paste or Edit CSV Text directly -->
           <details id="csvPasteDetails" style="border:1px solid var(--border-light); border-radius:var(--radius-sm); background:#fff; padding:8px 12px;">
             <summary style="cursor:pointer; font-size:0.8rem; font-weight:700; color:var(--text-secondary); display:flex; justify-content:space-between; align-items:center; gap:8px; user-select:none;">
               <span>📝 Or Paste / Edit Raw CSV Rows Directly</span>
