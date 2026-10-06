@@ -2605,10 +2605,47 @@
         return getTournamentData();
       }
 
+      function autoLaunchNextGameOnCourt(games, completedGame, wasAlreadyCompleted) {
+        if (!Array.isArray(games) || !completedGame || wasAlreadyCompleted) return null;
+        const courtName = String(completedGame.Court || getDefaultCourtForGame(completedGame)).trim();
+        if (!courtName) return null;
+        const hasLiveOnCourt = games.some(
+          (x) =>
+            x &&
+            x.GameID !== completedGame.GameID &&
+            (x.Status === 'LIVE' || x.Status === 'ON_COURT') &&
+            String(x.Court || getDefaultCourtForGame(x)).trim() === courtName
+        );
+        if (hasLiveOnCourt) return null;
+        const busyTeams = {};
+        games.forEach((x) => {
+          if (x && (x.Status === 'LIVE' || x.Status === 'ON_COURT')) {
+            if (x.Team1ID) busyTeams[x.Team1ID] = true;
+            if (x.Team2ID) busyTeams[x.Team2ID] = true;
+          }
+        });
+        const isEligible = (x) => {
+          if (!x || (x.Status !== 'SCHEDULED' && x.Status !== 'QUEUED')) return false;
+          if (!x.Team1ID || !x.Team2ID || x.Team1ID === 'BYE' || x.Team2ID === 'BYE') return false;
+          if (busyTeams[x.Team1ID] || busyTeams[x.Team2ID]) return false;
+          return String(x.Court || getDefaultCourtForGame(x)).trim() === courtName;
+        };
+        const nextCandidate =
+          games.find((x) => isEligible(x) && x.Stage === completedGame.Stage) ||
+          games.find((x) => isEligible(x));
+        if (nextCandidate) {
+          nextCandidate.Court = courtName;
+          nextCandidate.Status = 'LIVE';
+          return nextCandidate;
+        }
+        return null;
+      }
+
       function submitGameScore(gameId, score1, score2, actorLdap) {
         const db = loadDb();
         const g = db.games.find((x) => x.GameID === gameId);
         if (!g) throw new Error('Game not found');
+        const wasAlreadyCompleted = String(g.Status || '').toUpperCase() === 'COMPLETED';
         const cleanActor = String(actorLdap || '').trim().toLowerCase();
         const t1 = db.pairs.find((p) => p.PairID === g.Team1ID);
         const t2 = db.pairs.find((p) => p.PairID === g.Team2ID);
@@ -2646,6 +2683,7 @@
         if (g.Stage !== 'ROUND_ROBIN') {
           advanceBracketOutcome(db.games, g);
         }
+        autoLaunchNextGameOnCourt(db.games, g, wasAlreadyCompleted);
         saveDb(db);
         return getTournamentData();
       }
@@ -2654,6 +2692,7 @@
         const db = loadDb();
         const g = db.games.find((x) => x.GameID === gameId);
         if (!g) throw new Error('Game not found');
+        const wasAlreadyCompleted = String(g.Status || '').toUpperCase() === 'COMPLETED';
         g.Status = 'COMPLETED';
         g.ConfirmedByLDAP = actorLdap || 'opponent';
         g.WinnerTeamID = Number(g.Score1) > Number(g.Score2) ? g.Team1ID : g.Team2ID;
@@ -2661,6 +2700,7 @@
         if (g.Stage !== 'ROUND_ROBIN') {
           advanceBracketOutcome(db.games, g);
         }
+        autoLaunchNextGameOnCourt(db.games, g, wasAlreadyCompleted);
         saveDb(db);
         return getTournamentData();
       }
@@ -3344,13 +3384,22 @@
         const t1Short = getTeamShortName(latest.Team1ID, latest.Team1Name);
         const t2Short = getTeamShortName(latest.Team2ID, latest.Team2Name);
         const didWin = latest.WinnerTeamID === myPair.PairID;
+        const playoffsStarted = (state.data.games || []).some(
+          (x) => x.Level === myPair.Level && x.Stage === 'WINNERS_BRACKET' && x.Status === 'COMPLETED'
+        );
+        const canFixScore = latest.Stage === 'ROUND_ROBIN' && !playoffsStarted;
         announcements.push(`
-          <div class="organizer-callout" style="margin-top:4px; padding:8px 12px; font-size:0.8rem;">
+          <div class="organizer-callout" style="margin-top:4px; padding:8px 12px; font-size:0.8rem; display:flex; align-items:center; gap:8px;">
             <span>${didWin ? '🏆' : '✅'}</span>
             <div>
               <strong>Last Match:</strong>
               ${escapeHtml(t1Short)} <strong class="mono">${latest.Score1} - ${latest.Score2}</strong> ${escapeHtml(t2Short)}
             </div>
+            ${
+              canFixScore
+                ? `<button type="button" class="btn btn-sm btn-outline" style="margin-left:auto; padding:3px 9px; font-size:0.74rem; white-space:nowrap;" onclick="openScoreModal('${escapeHtml(latest.GameID)}')">✏️ Fix Score</button>`
+                : ''
+            }
           </div>
         `);
       } else if (announcements.length === 0) {
@@ -4350,6 +4399,9 @@
                       : '<span class="tag tag-blue">Scheduled</span>';
 
                     let actionBtn = '';
+                    const divPlayoffsStarted = (state.data.games || []).some(
+                      (x) => x.Level === level && x.Stage === 'WINNERS_BRACKET' && x.Status === 'COMPLETED'
+                    );
                     if (
                       Boolean(isMine) &&
                       g.Status !== 'BYE' &&
@@ -4361,6 +4413,19 @@
                         <div style="margin-top:10px;">
                           <button class="btn btn-sm btn-primary" style="width:100%; min-height:40px;" onclick="openScoreModal('${escapeHtml(g.GameID)}')">
                             🏓 Enter Score
+                          </button>
+                        </div>
+                      `;
+                    } else if (
+                      Boolean(isMine) &&
+                      g.Stage === 'ROUND_ROBIN' &&
+                      isCompleted &&
+                      !divPlayoffsStarted
+                    ) {
+                      actionBtn = `
+                        <div style="margin-top:8px;">
+                          <button class="btn btn-sm btn-outline" style="width:100%; min-height:36px; font-size:0.78rem;" onclick="openScoreModal('${escapeHtml(g.GameID)}')">
+                            ✏️ Fix Score
                           </button>
                         </div>
                       `;

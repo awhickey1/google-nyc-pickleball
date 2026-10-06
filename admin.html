@@ -1758,6 +1758,9 @@
     <!-- STEP 3: POOL PLAY STAGE (ROUND ROBIN)                              -->
     <!-- ================================================================== -->
     <div id="adminStep4Section" style="display:none;">
+      <!-- Cross-Division 6-Court Live Strip (Courts 1–6) -->
+      <div id="step4SixCourtStripContainer" style="margin-bottom:14px;"></div>
+
       <!-- Compact Pool Play Action Bar (3.2) -->
       <div class="card" style="padding:12px 16px; margin-bottom:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
@@ -1836,6 +1839,9 @@
     <!-- STEP 4: PLAYOFFS BRACKETS STAGE                                    -->
     <!-- ================================================================== -->
     <div id="adminStep5Section" style="display:none;">
+      <!-- Cross-Division 6-Court Live Strip (Courts 1–6) -->
+      <div id="step5SixCourtStripContainer" style="margin-bottom:14px;"></div>
+
       <!-- Visual Playoff Bracket Tree -->
       <div class="card">
         <div class="card-header">
@@ -5028,14 +5034,55 @@
         return getTournamentData();
       }
 
-      function confirmGameScore(gameId, actorLdap) {
+      function autoLaunchNextGameOnCourt(games, completedGame, wasAlreadyCompleted) {
+        if (!Array.isArray(games) || !completedGame || wasAlreadyCompleted) return null;
+        const courtName = String(completedGame.Court || getDefaultCourtForGame(completedGame)).trim();
+        if (!courtName) return null;
+        const hasLiveOnCourt = games.some(
+          (x) =>
+            x &&
+            x.GameID !== completedGame.GameID &&
+            (x.Status === 'LIVE' || x.Status === 'ON_COURT') &&
+            String(x.Court || getDefaultCourtForGame(x)).trim() === courtName
+        );
+        if (hasLiveOnCourt) return null;
+        const busyTeams = {};
+        games.forEach((x) => {
+          if (x && (x.Status === 'LIVE' || x.Status === 'ON_COURT')) {
+            if (x.Team1ID) busyTeams[x.Team1ID] = true;
+            if (x.Team2ID) busyTeams[x.Team2ID] = true;
+          }
+        });
+        const isEligible = (x) => {
+          if (!x || (x.Status !== 'SCHEDULED' && x.Status !== 'QUEUED')) return false;
+          if (!x.Team1ID || !x.Team2ID || x.Team1ID === 'BYE' || x.Team2ID === 'BYE') return false;
+          if (busyTeams[x.Team1ID] || busyTeams[x.Team2ID]) return false;
+          return String(x.Court || getDefaultCourtForGame(x)).trim() === courtName;
+        };
+        const nextCandidate =
+          games.find((x) => isEligible(x) && x.Stage === completedGame.Stage) ||
+          games.find((x) => isEligible(x));
+        if (nextCandidate) {
+          nextCandidate.Court = courtName;
+          nextCandidate.Status = 'LIVE';
+          return nextCandidate;
+        }
+        return null;
+      }
+
+      function confirmGameScore(gameId, actorLdap, wasAlreadyCompletedFlag) {
         const db = loadDb();
         const g = db.games.find((x) => x.GameID === gameId);
         if (!g) throw new Error('Game not found.');
+        const wasAlreadyCompleted =
+          wasAlreadyCompletedFlag !== undefined
+            ? Boolean(wasAlreadyCompletedFlag)
+            : String(g.Status || '').toUpperCase() === 'COMPLETED';
         g.Status = 'COMPLETED';
         g.ConfirmedByLDAP = actorLdap || 'coordinator';
         g.WinnerTeamID = Number(g.Score1) > Number(g.Score2) ? g.Team1ID : g.Team2ID;
         advanceBracketWinner(db.games, g);
+        autoLaunchNextGameOnCourt(db.games, g, wasAlreadyCompleted);
         saveDb(db);
         return getTournamentData();
       }
@@ -5044,6 +5091,7 @@
         const db = loadDb();
         const g = db.games.find((x) => x.GameID === gameId);
         if (!g) throw new Error('Game not found.');
+        const wasAlreadyCompleted = String(g.Status || '').toUpperCase() === 'COMPLETED';
         const s1 = Number(score1);
         const s2 = Number(score2);
         if (isNaN(s1) || isNaN(s2) || s1 === s2) {
@@ -5054,7 +5102,7 @@
         g.SubmittedByTeam = 'ADMIN';
         g.SubmittedByLDAP = 'coordinator';
         saveDb(db);
-        return confirmGameScore(gameId, 'coordinator');
+        return confirmGameScore(gameId, 'coordinator', wasAlreadyCompleted);
       }
 
       function resetGameScore(gameId, optTargetStatus) {
@@ -6159,8 +6207,8 @@
       else if (state.adminStep === 'step5') renderStep5Section();
     }
 
-    function toggleCsvSetupCard() {
-      state.csvSetupMinimized = !state.csvSetupMinimized;
+    function syncCsvSetupCardVisibility(isMinimized) {
+      state.csvSetupMinimized = Boolean(isMinimized);
       const bodyEl = document.getElementById('csvSetupCardBody');
       const btnEl = document.getElementById('csvSetupToggleBtn');
       const hdrEl = document.getElementById('csvSetupCardHeader');
@@ -6175,6 +6223,11 @@
       if (btnEl) {
         btnEl.textContent = state.csvSetupMinimized ? '▼ Expand CSV Import' : '▲ Minimize';
       }
+    }
+
+    function toggleCsvSetupCard() {
+      state.csvSetupUserToggled = true;
+      syncCsvSetupCardVisibility(!state.csvSetupMinimized);
     }
 
     function jumpFromStatusDropdown(level, stepKey) {
@@ -6380,6 +6433,12 @@
     // STEP 1: PLAYERS & CHECK-IN (CSV)
     // ========================================================================
     function renderStep1Section() {
+      const hasPlayers = (state.data.players || []).length > 0;
+      if (!state.csvSetupUserToggled) {
+        syncCsvSetupCardVisibility(hasPlayers);
+      } else {
+        syncCsvSetupCardVisibility(Boolean(state.csvSetupMinimized));
+      }
       renderAdminRosterTable();
     }
 
@@ -8178,6 +8237,180 @@
     }
 
     // ========================================================================
+    // CROSS-DIVISION 6-COURT LIVE FLOOR STRIP & UNPAIRED CHECKED-IN GUARDRAILS
+    // ========================================================================
+    function getUnpairedCheckedInPlayers(lvl) {
+      return (state.data.players || []).filter(
+        (p) => !isWaitlistPlayer(p) && p.Level === lvl && p.CheckedIn && !p.PairID
+      );
+    }
+
+    function renderUnpairedCheckedInBannerHtml(lvl) {
+      const unpaired = getUnpairedCheckedInPlayers(lvl);
+      if (!unpaired.length) return '';
+      const namesList = unpaired
+        .map((p) => `${escapeHtml(formatPlayerName(p))} (@${escapeHtml(p.LDAP)})`)
+        .join(', ');
+      return `
+        <div class="alert-banner alert-danger" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+          <div>
+            <strong>⚠️ ${unpaired.length} Checked-In Player${unpaired.length === 1 ? '' : 's'} Still Unpaired in ${escapeHtml(lvl)}:</strong>
+            <span>${namesList} — pair them in Step 2 before generating Pool Play so no arrived player is left out.</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger" onclick="setAdminStep('step2')">
+            🤝 Pair in Step 2 →
+          </button>
+        </div>
+      `;
+    }
+
+    function toggleSixCourtStrip() {
+      state.sixCourtStripMinimized = !state.sixCourtStripMinimized;
+      renderActiveStep();
+    }
+
+    async function handleStripSaveScore(gameId) {
+      const s1El = document.getElementById(`stripScore1_${gameId}`);
+      const s2El = document.getElementById(`stripScore2_${gameId}`);
+      const s1Raw = s1El ? s1El.value.trim() : '';
+      const s2Raw = s2El ? s2El.value.trim() : '';
+      if (s1Raw === '' || s2Raw === '') {
+        showToast('Enter both scores before saving.');
+        return;
+      }
+      const s1 = Number(s1Raw);
+      const s2 = Number(s2Raw);
+      if (isNaN(s1) || isNaN(s2) || s1 === s2) {
+        showToast('Scores must be valid non-tied numbers.');
+        return;
+      }
+      try {
+        const data = await callBackend('adminForceScore', gameId, s1, s2);
+        applyTournamentData(data);
+        showToast(`✅ Saved ${s1}-${s2} for ${gameId} & auto-launched next court match!`);
+      } catch (err) {
+        showToast('Error: ' + err.message);
+      }
+    }
+
+    function renderSixCourtLiveStripHtml() {
+      const allGames = state.data.games || [];
+      const courts = ['Court 1', 'Court 2', 'Court 3', 'Court 4', 'Court 5', 'Court 6'];
+      const defaultDivByCourt = {
+        'Court 1': 'Intermediate',
+        'Court 2': 'Intermediate',
+        'Court 3': 'Intermediate Plus',
+        'Court 4': 'Intermediate Plus',
+        'Court 5': 'Advanced',
+        'Court 6': 'Advanced',
+      };
+
+      const liveCount = courts.filter((c) =>
+        allGames.some(
+          (g) =>
+            (g.Status === 'LIVE' || g.Status === 'ON_COURT') &&
+            String(g.Court || getDefaultCourtForGame(g)).trim() === c
+        )
+      ).length;
+
+      const cardsHtml = courts
+        .map((courtName) => {
+          const liveGame = allGames.find(
+            (g) =>
+              (g.Status === 'LIVE' || g.Status === 'ON_COURT') &&
+              String(g.Court || getDefaultCourtForGame(g)).trim() === courtName
+          );
+          const nextQueued = !liveGame
+            ? allGames.find(
+                (g) =>
+                  (g.Status === 'SCHEDULED' || g.Status === 'QUEUED') &&
+                  g.Team1ID &&
+                  g.Team2ID &&
+                  g.Team1ID !== 'BYE' &&
+                  g.Team2ID !== 'BYE' &&
+                  String(g.Court || getDefaultCourtForGame(g)).trim() === courtName
+              )
+            : null;
+
+          const activeGame = liveGame || nextQueued;
+          const divName = activeGame ? activeGame.Level : defaultDivByCourt[courtName];
+          const shortDiv =
+            divName === 'Intermediate Plus' ? 'Int+' : divName === 'Intermediate' ? 'Int' : 'Adv';
+          const borderStyle = liveGame
+            ? 'border:1.5px solid var(--brand-primary); background:#f0fdf4;'
+            : nextQueued
+            ? 'border:1px solid var(--accent-blue-border); background:#ffffff;'
+            : 'border:1px solid var(--border-light); background:var(--bg-subtle); opacity:0.85;';
+
+          let bodyContent = '';
+          if (liveGame) {
+            const t1 = formatTeamName(liveGame.Team1Name || 'Team 1');
+            const t2 = formatTeamName(liveGame.Team2Name || 'Team 2');
+            bodyContent = `
+              <div style="font-size:0.78rem; font-weight:700; color:var(--text-primary); line-height:1.3; margin-bottom:6px;">
+                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t1)}</div>
+                <div style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">vs ${escapeHtml(t2)}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input id="stripScore1_${escapeHtml(liveGame.GameID)}" type="number" class="input mono" style="width:42px; padding:3px 4px; font-size:0.76rem; text-align:center;" value="${liveGame.Score1 !== '' ? liveGame.Score1 : ''}" placeholder="0">
+                <span style="font-size:0.72rem; color:var(--text-muted);">-</span>
+                <input id="stripScore2_${escapeHtml(liveGame.GameID)}" type="number" class="input mono" style="width:42px; padding:3px 4px; font-size:0.76rem; text-align:center;" value="${liveGame.Score2 !== '' ? liveGame.Score2 : ''}" placeholder="0">
+                <button type="button" class="btn btn-sm btn-primary" style="padding:3px 8px; font-size:0.72rem; margin-left:auto;" onclick="handleStripSaveScore('${escapeHtml(liveGame.GameID)}')">💾 Save</button>
+              </div>
+            `;
+          } else if (nextQueued) {
+            const t1 = formatTeamName(nextQueued.Team1Name || 'Team 1');
+            const t2 = formatTeamName(nextQueued.Team2Name || 'Team 2');
+            bodyContent = `
+              <div style="font-size:0.76rem; font-weight:700; color:var(--text-primary); line-height:1.3; margin-bottom:6px;">
+                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t1)}</div>
+                <div style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">vs ${escapeHtml(t2)}</div>
+              </div>
+              <button type="button" class="btn btn-sm btn-blue" style="width:100%; padding:3px 8px; font-size:0.72rem;" onclick="handleLaunchGame('${escapeHtml(nextQueued.GameID)}')">📣 Launch</button>
+            `;
+          } else {
+            bodyContent = `<div style="font-size:0.74rem; color:var(--text-muted); padding:6px 0;">Court open / no queued games</div>`;
+          }
+
+          return `
+            <div style="border-radius:var(--radius-sm); padding:8px 10px; ${borderStyle}">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:5px;">
+                <span class="mono" style="font-size:0.75rem; font-weight:800; color:var(--text-primary);">${escapeHtml(courtName)} <span style="font-weight:600; color:var(--text-secondary);">(${shortDiv})</span></span>
+                ${
+                  liveGame
+                    ? '<span class="tag tag-green" style="font-size:0.64rem; padding:1px 5px;">● LIVE</span>'
+                    : nextQueued
+                    ? '<span class="tag tag-blue" style="font-size:0.64rem; padding:1px 5px;">Queued</span>'
+                    : '<span class="tag tag-slate" style="font-size:0.64rem; padding:1px 5px;">Open</span>'
+                }
+              </div>
+              ${bodyContent}
+            </div>
+          `;
+        })
+        .join('');
+
+      return `
+        <div class="card" style="padding:10px 14px; margin-bottom:0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; ${state.sixCourtStripMinimized ? '' : 'margin-bottom:8px;'}">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="font-size:0.84rem; font-weight:800; color:var(--text-primary);">🏟️ All 6 Courts Live Floor Strip</span>
+              <span class="tag ${liveCount > 0 ? 'tag-green' : 'tag-slate'}" style="font-size:0.7rem;">${liveCount}/6 Courts Live</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:0.72rem;" onclick="toggleSixCourtStrip()">
+              ${state.sixCourtStripMinimized ? '▼ Show Courts 1–6' : '▲ Hide'}
+            </button>
+          </div>
+          ${
+            state.sixCourtStripMinimized
+              ? ''
+              : `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); gap:8px;">${cardsHtml}</div>`
+          }
+        </div>
+      `;
+    }
+
+    // ========================================================================
     // STEP 4: POOL PLAY STAGE (ROUND ROBIN)
     // ========================================================================
     function setStep4PoolFilter(pool) {
@@ -8189,13 +8422,18 @@
       renderDivisionPills('step4DivisionPills');
       const lvl = state.selectedLevel;
 
+      const stripContainer = document.getElementById('step4SixCourtStripContainer');
+      if (stripContainer) {
+        stripContainer.innerHTML = renderSixCourtLiveStripHtml();
+      }
+
       const levelPairs = state.data.pairs.filter((p) => p.Level === lvl);
       const countInfo = getDivisionTeamCountInfo(lvl, levelPairs.length);
 
       const rrGames = state.data.games.filter((g) => g.Level === lvl && g.Stage === 'ROUND_ROBIN');
 
       document.getElementById('step4PoolsStandingsContainer').innerHTML =
-        countInfo.bannerHtml + renderPoolsCardsHtml(lvl);
+        renderUnpairedCheckedInBannerHtml(lvl) + countInfo.bannerHtml + renderPoolsCardsHtml(lvl);
 
       const poolFilter = state.step4PoolFilter || 'ALL';
       const btnAll = document.getElementById('step4PoolFilterAll');
@@ -8384,6 +8622,7 @@
       );
       const completedCount = existingRr.filter((g) => g.Status === 'COMPLETED').length;
       const rrEst = getPoolPlayTimeEstimate(lvl);
+      const unpairedCheckedIn = getUnpairedCheckedInPlayers(lvl);
 
       requestAdminConfirm({
         title:
@@ -8392,11 +8631,22 @@
             : `📅 Generate Pool Play Games — ${escapeHtml(lvl)}`,
         badgeHtml: renderLevelBadge(lvl),
         confirmLabel: 'Complete',
-        confirmBtnClass: existingRr.length > 0 ? 'btn-amber' : 'btn-primary',
+        confirmBtnClass: existingRr.length > 0 || unpairedCheckedIn.length > 0 ? 'btn-amber' : 'btn-primary',
         bodyHtml: `
           <p style="font-size:0.88rem; color:var(--text-secondary);">
             Ready to generate the <strong>Pool Play (Round Robin)</strong> schedule for <strong>${escapeHtml(lvl)}</strong> (${lvlPairs.length} teams)?
           </p>
+          ${
+            unpairedCheckedIn.length > 0
+              ? `
+              <div style="margin-top:10px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--danger-soft); border:1px solid var(--danger-border); color:var(--danger); font-size:0.82rem; font-weight:600;">
+                ⚠️ ${unpairedCheckedIn.length} Checked-In Player${unpairedCheckedIn.length === 1 ? '' : 's'} Still Unpaired in ${escapeHtml(lvl)}:
+                <strong>${unpairedCheckedIn.map((p) => `${escapeHtml(formatPlayerName(p))} (@${escapeHtml(p.LDAP)})`).join(', ')}</strong>.
+                Generating Pool Play now will exclude them unless you pair them in Step 2 first.
+              </div>
+            `
+              : ''
+          }
           <div style="margin-top:12px; padding:14px 16px; border-radius:var(--radius-sm); background:var(--brand-primary-soft); border:1px solid var(--brand-primary-border);">
             <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--brand-primary-hover); margin-bottom:4px;">
               ⏱️ Estimated Time to Complete Games
@@ -8594,6 +8844,10 @@
     function renderStep5Section() {
       renderDivisionPills('step5DivisionPills');
       const lvl = state.selectedLevel;
+      const stripContainer = document.getElementById('step5SixCourtStripContainer');
+      if (stripContainer) {
+        stripContainer.innerHTML = renderSixCourtLiveStripHtml();
+      }
       document.getElementById('bracketPtsLabel').textContent =
         `${getDivisionBracketPoints(lvl)} points (Win by ${getDivisionBracketWinBy(lvl)})`;
 
