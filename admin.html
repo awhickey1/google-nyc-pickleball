@@ -5385,6 +5385,58 @@
         return resetTournament(optionalTournamentName);
       }
 
+      function pullOverflowMatchToCourt(courtName, optGameId) {
+        const cleanCourt = String(courtName || '').trim();
+        if (!cleanCourt) throw new Error('Target court name is required.');
+        const db = loadDb();
+        const hasLiveOnTarget = db.games.some(
+          (g) =>
+            (g.Status === 'LIVE' || g.Status === 'ON_COURT') &&
+            String(g.Court || getDefaultCourtForGame(g)).trim().toLowerCase() ===
+              cleanCourt.toLowerCase()
+        );
+        if (hasLiveOnTarget) {
+          throw new Error(cleanCourt + ' already has a live match in progress.');
+        }
+        const busyTeams = {};
+        const remainingByLevel = {};
+        db.games.forEach((g) => {
+          if (g.Status === 'LIVE' || g.Status === 'ON_COURT') {
+            if (g.Team1ID) busyTeams[g.Team1ID] = true;
+            if (g.Team2ID) busyTeams[g.Team2ID] = true;
+          }
+          if (g.Status !== 'COMPLETED' && g.Status !== 'BYE') {
+            remainingByLevel[g.Level] = (remainingByLevel[g.Level] || 0) + 1;
+          }
+        });
+        const isEligibleOverflow = (g) => {
+          if (!g || (g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED')) return false;
+          if (!g.Team1ID || !g.Team2ID || g.Team1ID === 'BYE' || g.Team2ID === 'BYE') return false;
+          if (busyTeams[g.Team1ID] || busyTeams[g.Team2ID]) return false;
+          return true;
+        };
+        let target = null;
+        if (optGameId) {
+          target = db.games.find((g) => g.GameID === String(optGameId).trim());
+          if (!target) throw new Error('Selected overflow match not found: ' + optGameId);
+          if (!isEligibleOverflow(target)) {
+            throw new Error('Selected match is no longer queued or one of its teams is already on court.');
+          }
+        } else {
+          const candidates = db.games.filter(isEligibleOverflow);
+          candidates.sort((a, b) => (remainingByLevel[b.Level] || 0) - (remainingByLevel[a.Level] || 0));
+          target = candidates[0] || null;
+        }
+        if (!target) {
+          throw new Error('No eligible queued matches with available players to pull onto ' + cleanCourt + '.');
+        }
+        target.Court = cleanCourt;
+        target.Status = 'LIVE';
+        db.settings.TournamentStatus = 'LIVE';
+        saveDb(db);
+        return getTournamentData();
+      }
+
       return {
         getTournamentData,
         addPlayer,
@@ -5408,6 +5460,7 @@
         generateRoundRobinGames,
         generatePlayoffBrackets,
         updateGameCourt,
+        pullOverflowMatchToCourt,
         launchGame,
         launchNextOpenCourtMatches,
         confirmGameScore,
@@ -8293,6 +8346,63 @@
       }
     }
 
+    function getEligibleOverflowMatchesForCourt(courtName) {
+      const allGames = state.data.games || [];
+      const cleanCourt = String(courtName || '').trim();
+      const busyTeams = {};
+      const remainingByLevel = {};
+      allGames.forEach((g) => {
+        if (g.Status === 'LIVE' || g.Status === 'ON_COURT') {
+          if (g.Team1ID) busyTeams[g.Team1ID] = true;
+          if (g.Team2ID) busyTeams[g.Team2ID] = true;
+        }
+        if (g.Status !== 'COMPLETED' && g.Status !== 'BYE') {
+          remainingByLevel[g.Level] = (remainingByLevel[g.Level] || 0) + 1;
+        }
+      });
+
+      const candidates = allGames.filter((g) => {
+        if (!g || (g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED')) return false;
+        if (!g.Team1ID || !g.Team2ID || g.Team1ID === 'BYE' || g.Team2ID === 'BYE') return false;
+        if (busyTeams[g.Team1ID] || busyTeams[g.Team2ID]) return false;
+        const gCourt = String(g.Court || getDefaultCourtForGame(g)).trim();
+        return gCourt !== cleanCourt;
+      });
+
+      candidates.sort((a, b) => {
+        const remDiff = (remainingByLevel[b.Level] || 0) - (remainingByLevel[a.Level] || 0);
+        if (remDiff !== 0) return remDiff;
+        return 0;
+      });
+      return candidates;
+    }
+
+    async function handlePullOverflowMatch(courtName, selectId) {
+      const selEl = selectId ? document.getElementById(selectId) : null;
+      const chosenGameId = selEl ? selEl.value : '';
+      if (!chosenGameId) {
+        showToast('No eligible queued overflow match selected.');
+        return;
+      }
+      try {
+        let data;
+        try {
+          data = await callBackend('pullOverflowMatchToCourt', courtName, chosenGameId);
+        } catch (rpcErr) {
+          if (String((rpcErr && rpcErr.message) || rpcErr).includes('pullOverflowMatchToCourt')) {
+            await callBackend('updateGameCourt', chosenGameId, courtName);
+            data = await callBackend('launchGameToCourt', chosenGameId);
+          } else {
+            throw rpcErr;
+          }
+        }
+        applyTournamentData(data);
+        showToast(`⚡ Pulled & launched ${chosenGameId} onto ${courtName}!`);
+      } catch (err) {
+        showToast('Error: ' + err.message);
+      }
+    }
+
     function renderSixCourtLiveStripHtml() {
       const allGames = state.data.games || [];
       const courts = ['Court 1', 'Court 2', 'Court 3', 'Court 4', 'Court 5', 'Court 6'];
@@ -8332,14 +8442,20 @@
               )
             : null;
 
+          const overflowCandidates =
+            !liveGame && !nextQueued ? getEligibleOverflowMatchesForCourt(courtName) : [];
+
           const activeGame = liveGame || nextQueued;
           const divName = activeGame ? activeGame.Level : defaultDivByCourt[courtName];
           const shortDiv =
             divName === 'Intermediate Plus' ? 'Int+' : divName === 'Intermediate' ? 'Int' : 'Adv';
+          const courtKey = courtName.replace(/\s+/g, '');
           const borderStyle = liveGame
             ? 'border:1.5px solid var(--brand-primary); background:#f0fdf4;'
             : nextQueued
             ? 'border:1px solid var(--accent-blue-border); background:#ffffff;'
+            : overflowCandidates.length
+            ? 'border:1px dashed var(--accent-amber-border); background:var(--accent-amber-soft);'
             : 'border:1px solid var(--border-light); background:var(--bg-subtle); opacity:0.85;';
 
           let bodyContent = '';
@@ -8368,6 +8484,26 @@
               </div>
               <button type="button" class="btn btn-sm btn-blue" style="width:100%; padding:3px 8px; font-size:0.72rem;" onclick="handleLaunchGame('${escapeHtml(nextQueued.GameID)}')">📣 Launch</button>
             `;
+          } else if (overflowCandidates.length > 0) {
+            const optsHtml = overflowCandidates
+              .map((cand) => {
+                const cShortDiv =
+                  cand.Level === 'Intermediate Plus'
+                    ? 'Int+'
+                    : cand.Level === 'Intermediate'
+                    ? 'Int'
+                    : 'Adv';
+                const cT1 = formatTeamName(cand.Team1Name || 'Team 1');
+                const cT2 = formatTeamName(cand.Team2Name || 'Team 2');
+                return `<option value="${escapeHtml(cand.GameID)}">[${cShortDiv}] ${escapeHtml(cT1)} vs ${escapeHtml(cT2)}</option>`;
+              })
+              .join('');
+            bodyContent = `
+              <select id="overflowSelect_${escapeHtml(courtKey)}" class="select" style="width:100%; padding:3px 6px; font-size:0.71rem; margin-bottom:5px;">
+                ${optsHtml}
+              </select>
+              <button type="button" class="btn btn-sm btn-amber" style="width:100%; padding:3px 8px; font-size:0.71rem;" onclick="handlePullOverflowMatch('${escapeHtml(courtName)}', 'overflowSelect_${escapeHtml(courtKey)}')">⚡ Pull &amp; Launch</button>
+            `;
           } else {
             bodyContent = `<div style="font-size:0.74rem; color:var(--text-muted); padding:6px 0;">Court open / no queued games</div>`;
           }
@@ -8381,6 +8517,8 @@
                     ? '<span class="tag tag-green" style="font-size:0.64rem; padding:1px 5px;">● LIVE</span>'
                     : nextQueued
                     ? '<span class="tag tag-blue" style="font-size:0.64rem; padding:1px 5px;">Queued</span>'
+                    : overflowCandidates.length
+                    ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 5px;">⚡ Overflow</span>'
                     : '<span class="tag tag-slate" style="font-size:0.64rem; padding:1px 5px;">Open</span>'
                 }
               </div>
