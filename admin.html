@@ -1141,13 +1141,8 @@
 
           <div id="tournamentStatusDropdown" class="settings-dropdown-panel" style="width:min(880px, calc(100vw - 32px));" onclick="event.stopPropagation()">
             <div class="settings-dropdown-header">
-              <div>
-                <div style="font-size:0.96rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
-                  <span>📊 Tournament Status &amp; Division Progress</span>
-                </div>
-                <div style="font-size:0.77rem; color:var(--text-secondary); margin-top:2px;">
-                  Live check-ins, team counts, pool &amp; playoff games remaining, estimated completion time, and remaining actions
-                </div>
+              <div style="font-size:0.96rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                <span>📊 Tournament Status &amp; Division Progress</span>
               </div>
               <button type="button" class="btn btn-sm btn-outline" style="padding:4px 9px;" onclick="closeTournamentStatusDropdown()">
                 ✕ Close
@@ -6202,9 +6197,9 @@
       let totalPlayers = 0;
       let totalCheckedIn = 0;
       let totalPairs = 0;
-      let totalPoolRem = 0;
+      let totalPoolDone = 0;
       let totalPoolAll = 0;
-      let totalPlayoffRem = 0;
+      let totalPlayoffDone = 0;
       let totalPlayoffAll = 0;
       let maxDivMinutesRemaining = 0;
 
@@ -6216,10 +6211,15 @@
         const prs = (state.data.pairs || []).filter((p) => p.Level === lvl).length;
         const countInfo = getDivisionTeamCountInfo(lvl, prs);
         const numPools = getDivisionPoolsCount(lvl);
-        const poolRuleLabel = numPools === 1 ? '1 Pool (Pool A)' : '2 Pools (Pool A & B)';
 
         const rrEst = getPoolPlayTimeEstimate(lvl);
         const brEst = getPlayoffsTimeEstimate(lvl);
+
+        const rawCourts = Array.isArray(rrEst.courts) ? rrEst.courts : [];
+        const compactCourtsLabel =
+          rawCourts.length > 0 && rawCourts.every((c) => /^Court\s+/i.test(c))
+            ? `Courts ${rawCourts.map((c) => c.replace(/^Court\s+/i, '')).join(' & ')}`
+            : rrEst.courtsLabel || '';
 
         const rrActualGames = (state.data.games || []).filter(
           (g) => g.Level === lvl && g.Stage === 'ROUND_ROBIN' && g.Status !== 'BYE'
@@ -6236,10 +6236,16 @@
         totalPlayers += activeList.length;
         totalCheckedIn += chkActive;
         totalPairs += prs;
-        totalPoolRem += rrEst.remainingGames;
+        totalPoolDone += rrEst.finishedGames;
         totalPoolAll += rrEst.totalGames;
-        totalPlayoffRem += brEst.remainingGames;
+        totalPlayoffDone += brEst.finishedGames;
         totalPlayoffAll += brEst.totalGames;
+
+        const poolFormatText = numPools === 1 ? '1 pool' : `${numPools} pools`;
+        const playoffFormatText =
+          brEst.actualQualifiers === 6
+            ? 'top 6 (byes)'
+            : `top ${brEst.actualQualifiers}`;
 
         // Build Remaining Actions Needed list
         const actions = [];
@@ -6308,34 +6314,34 @@
           <div class="settings-dropdown-section" style="display:flex; flex-direction:column; gap:10px; border:1px solid ${prs > 0 && countInfo.isFlagged ? 'var(--danger-border)' : 'var(--border-light)'};">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
               ${renderLevelBadge(lvl)}
-              <span class="mono" style="font-size:0.71rem; color:var(--text-muted);">${poolRuleLabel}</span>
+              <span class="mono" style="font-size:0.71rem; color:var(--text-muted);">${escapeHtml(compactCourtsLabel)}</span>
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.78rem;">
               <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
                 <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Check-Ins</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">✓ ${chkActive} / ${activeList.length}</div>
+                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${chkActive} / ${activeList.length}</div>
                 <div style="font-size:0.68rem; color:var(--text-secondary);">${uncheckedCount === 0 && activeList.length > 0 ? 'All checked in' : `${uncheckedCount} remaining`}</div>
               </div>
               <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
                 <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Teams</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">🤝 ${prs} Teams</div>
+                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${prs} Teams</div>
                 <div style="font-size:0.68rem; color:var(--text-secondary);">${unpairedCount > 0 ? `${unpairedCount} unpaired` : prs > 0 ? 'Paired' : 'Not paired yet'}</div>
               </div>
               <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
-                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Pool Games Left</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">🏓 ${rrEst.remainingGames} left</div>
-                <div style="font-size:0.68rem; color:var(--text-secondary);">${rrActualGames.length === 0 ? `${rrEst.projectedTotalGames} projected` : `${rrEst.finishedGames}/${rrEst.totalGames} done`} • ~${rrEst.formattedRemaining}</div>
+                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Pool</div>
+                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${rrEst.finishedGames} / ${rrEst.totalGames}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35; margin-top:2px;">games completed • ${poolFormatText} • to ${rrEst.targetPoints}pts win by ${rrEst.winBy} • ~${rrEst.formattedRemaining} left</div>
               </div>
               <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
-                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Playoff Games Left</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">🏆 ${brEst.remainingGames} left</div>
-                <div style="font-size:0.68rem; color:var(--text-secondary);">${brActualGames.length === 0 ? `Top ${brEst.actualQualifiers} (${brEst.projectedTotalGames} gms)` : `${brEst.finishedGames}/${brEst.totalGames} done`} • ~${brEst.formattedRemaining}</div>
+                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Playoff</div>
+                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${brEst.finishedGames} / ${brEst.totalGames}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35; margin-top:2px;">games completed • ${playoffFormatText} • to ${brEst.targetPoints}pts win by ${brEst.winBy} • ~${brEst.formattedRemaining} left</div>
               </div>
             </div>
 
             <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:7px 9px; display:flex; align-items:center; justify-content:space-between; font-size:0.76rem;">
-              <span style="color:var(--text-secondary); font-weight:700;">⏱ Est. Time Left (${escapeHtml(rrEst.courtsLabel)}):</span>
+              <span style="color:var(--text-secondary); font-weight:700;">⏱ Est. Time Left:</span>
               <strong class="mono" style="color:var(--text-primary); font-size:0.84rem;">${formatHoursMinutes(divTotalRemMins)}</strong>
             </div>
 
@@ -6351,18 +6357,18 @@
 
       const liveBannerHtml = `
         <div class="settings-dropdown-section" style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:${isLive ? 'var(--success-soft)' : 'var(--warning-soft)'}; border-color:${isLive ? 'var(--success-border)' : 'var(--warning-border)'};">
-          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <span class="tag ${isLive ? 'tag-green' : 'tag-amber'}" style="font-size:0.76rem; padding:4px 10px;">
               ${isLive ? '🟢 TOURNAMENT LIVE' : '⏳ WAITING / CHECK-IN MODE (NOT LIVE)'}
             </span>
             <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary);">
-              ✓ <strong>${totalCheckedIn}/${totalPlayers}</strong> Checked In • 🤝 <strong>${totalPairs}</strong> Teams • 🏓 <strong>${totalPoolRem}</strong> Pool Left • 🏆 <strong>${totalPlayoffRem}</strong> Playoff Left • ⏱ Est. <strong>${formatHoursMinutes(maxDivMinutesRemaining)}</strong> Remaining
+              ✓ <strong>${totalCheckedIn}/${totalPlayers}</strong> Checked In • 🤝 <strong>${totalPairs}</strong> Teams • 🏓 <strong>${totalPoolDone}/${totalPoolAll}</strong> Pool Games Completed • 🏆 <strong>${totalPlayoffDone}/${totalPlayoffAll}</strong> Playoff Games Completed • ⏱ Est. <strong>${formatHoursMinutes(maxDivMinutesRemaining)}</strong> Remaining
             </span>
           </div>
           ${
             !isLive
               ? `<button type="button" class="btn btn-sm btn-amber" onclick="closeTournamentStatusDropdown(); handleToggleTournamentStatus();">🚀 Make Tournament Go Live</button>`
-              : `<span style="font-size:0.74rem; font-weight:700; color:var(--success-text);">Players see Live Schedule &amp; Standings</span>`
+              : ''
           }
         </div>
       `;
