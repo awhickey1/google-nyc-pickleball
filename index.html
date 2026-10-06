@@ -2018,6 +2018,12 @@
             g.WinnerTeamID = Number(g.Score1) > Number(g.Score2) ? g.Team1ID : g.Team2ID;
           }
         }
+        if (g.Stage === 'WINNERS_BRACKET' && g.PoolOrRound === 'Semifinal') {
+          if (g.Team2Name === 'Winner (#4 vs #5)') g.Team2Name = 'Winner QF1';
+          if (g.Team1Name === 'Winner (#3 vs #6)') g.Team1Name = 'Winner QF2';
+          if (g.Team1Name === 'Seed #1 (Bye)' || g.Team1Name === 'Seed #1') g.Team1Name = '1st Rd Bye (TBD)';
+          if (g.Team2Name === 'Seed #2 (Bye)' || g.Team2Name === 'Seed #2') g.Team2Name = '1st Rd Bye (TBD)';
+        }
         g.Team1Name =
           g.Team1ID && pairById[g.Team1ID]
             ? pairById[g.Team1ID].TeamName
@@ -2033,8 +2039,70 @@
       });
       ensureBronzeBracketGamesClient(data.games, data.settings);
       data.games = sortGamesChronologically(data.games);
-      Object.values(data.standings || {}).forEach((divSt) => {
+      const compareQualTeams = (a, b) => {
+        if (b.Wins !== a.Wins) return b.Wins - a.Wins;
+        if (b.PointDiff !== a.PointDiff) return b.PointDiff - a.PointDiff;
+        if (b.PointsMade !== a.PointsMade) return b.PointsMade - a.PointsMade;
+        if (a.Losses !== b.Losses) return a.Losses - b.Losses;
+        if (Math.abs((b.PointsWinPct || 0) - (a.PointsWinPct || 0)) > 1e-9) {
+          return (b.PointsWinPct || 0) - (a.PointsWinPct || 0);
+        }
+        return String(a.PairID).localeCompare(String(b.PairID));
+      };
+      ['Intermediate', 'Intermediate Plus', 'Advanced'].forEach((lvl) => {
+        const divSt = data.standings && data.standings[lvl];
         if (!divSt) return;
+        const poolNames = Object.keys(divSt.pools || {}).sort();
+        const numPools = poolNames.length;
+        const qMap = {
+          'Intermediate': Number((data.settings || {}).QualifiersIntermediate) || 6,
+          'Intermediate Plus': Number((data.settings || {}).QualifiersIntermediatePlus) || 6,
+          'Advanced': Number((data.settings || {}).QualifiersAdvanced) || 6,
+        };
+        const targetQuals = qMap[lvl] || 6;
+        if (numPools >= 2 && Array.isArray(divSt.winnersSeeds) && divSt.winnersSeeds.length >= 2) {
+          const sorted = divSt.winnersSeeds.slice().sort(compareQualTeams);
+          const seed1 = sorted[0];
+          const seed2 = sorted.find((t) => t.PoolID !== seed1.PoolID);
+          if (seed2) {
+            const poolXRest = sorted.filter(
+              (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID === seed1.PoolID
+            );
+            const poolYRest = sorted.filter(
+              (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID !== seed1.PoolID
+            );
+            const interleaved = [seed1, seed2];
+            const maxLen = Math.max(poolXRest.length, poolYRest.length);
+            for (let i = 0; i < maxLen; i++) {
+              if (i < poolXRest.length) interleaved.push(poolXRest[i]);
+              if (i < poolYRest.length) interleaved.push(poolYRest[i]);
+            }
+            const seedByPairId = {};
+            interleaved.forEach((t, idx) => {
+              const seedNum = idx + 1;
+              const statusStr =
+                targetQuals === 6 && seedNum <= 2
+                  ? 'SEMIFINAL_BYE'
+                  : targetQuals === 4
+                  ? 'SEMIFINAL'
+                  : 'QUARTERFINAL';
+              t.ProjectedSeed = seedNum;
+              t.ProjectedStatus = statusStr;
+              t.ProjectedBracket = 'WINNERS';
+              seedByPairId[t.PairID] = { seed: seedNum, status: statusStr };
+            });
+            divSt.winnersSeeds = interleaved;
+            Object.values(divSt.pools || {}).forEach((rows) => {
+              (rows || []).forEach((r) => {
+                if (seedByPairId[r.PairID]) {
+                  r.ProjectedSeed = seedByPairId[r.PairID].seed;
+                  r.ProjectedStatus = seedByPairId[r.PairID].status;
+                  r.ProjectedBracket = 'WINNERS';
+                }
+              });
+            });
+          }
+        }
         Object.values(divSt.pools || {}).forEach((rows) => {
           (rows || []).forEach((r) => {
             r.Player1Name = formatPlayerName(r.Player1Name);
@@ -3371,7 +3439,13 @@
       ) {
         return '<span class="tag" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Out</span>';
       }
-      if (r.ProjectedStatus === 'SEMIFINAL_BYE' || (quals === 6 && seed <= 2)) {
+      const numPools = Object.keys(
+        (state.data.standings && state.data.standings[level] && state.data.standings[level].pools) || {}
+      ).length;
+      const isBye =
+        quals === 6 &&
+        (numPools >= 2 ? Number(r.PoolRank) === 1 : r.ProjectedStatus === 'SEMIFINAL_BYE' || seed <= 2);
+      if (isBye) {
         return '<span class="tag tag-amber" title="First-Round Semifinal Bye">★ 1st Rd Bye</span>';
       }
       return '<span class="tag tag-green" title="Advances to Playoffs">✓ In Playoffs</span>';

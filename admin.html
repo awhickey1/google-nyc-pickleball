@@ -2856,6 +2856,12 @@
             g.WinnerTeamID = Number(g.Score1) > Number(g.Score2) ? g.Team1ID : g.Team2ID;
           }
         }
+        if (g.Stage === 'WINNERS_BRACKET' && g.PoolOrRound === 'Semifinal') {
+          if (g.Team2Name === 'Winner (#4 vs #5)') g.Team2Name = 'Winner QF1';
+          if (g.Team1Name === 'Winner (#3 vs #6)') g.Team1Name = 'Winner QF2';
+          if (g.Team1Name === 'Seed #1 (Bye)' || g.Team1Name === 'Seed #1') g.Team1Name = '1st Rd Bye (TBD)';
+          if (g.Team2Name === 'Seed #2 (Bye)' || g.Team2Name === 'Seed #2') g.Team2Name = '1st Rd Bye (TBD)';
+        }
         if (g.Team1ID && pairById[g.Team1ID]) {
           g.Team1Name = pairById[g.Team1ID].TeamName;
         } else if (g.Team1Name) {
@@ -2873,9 +2879,66 @@
       });
       ensureBronzeBracketGamesClient(data.games, data.settings);
       data.games = sortGamesChronologically(data.games);
+      const compareQualTeams = (a, b) => {
+        if (b.Wins !== a.Wins) return b.Wins - a.Wins;
+        if (b.PointDiff !== a.PointDiff) return b.PointDiff - a.PointDiff;
+        if (b.PointsMade !== a.PointsMade) return b.PointsMade - a.PointsMade;
+        if (a.Losses !== b.Losses) return a.Losses - b.Losses;
+        if (Math.abs((b.PointsWinPct || 0) - (a.PointsWinPct || 0)) > 1e-9) {
+          return (b.PointsWinPct || 0) - (a.PointsWinPct || 0);
+        }
+        return String(a.PairID).localeCompare(String(b.PairID));
+      };
       if (data.standings) {
-        Object.values(data.standings).forEach((lvlSt) => {
+        LEVELS.forEach((lvl) => {
+          const lvlSt = data.standings[lvl];
           if (!lvlSt) return;
+          const poolNames = Object.keys(lvlSt.pools || {}).sort();
+          const numPools = poolNames.length;
+          const targetQuals = getDivisionQualifiersCount(lvl, data.settings);
+          if (numPools >= 2 && Array.isArray(lvlSt.winnersSeeds) && lvlSt.winnersSeeds.length >= 2) {
+            const sorted = lvlSt.winnersSeeds.slice().sort(compareQualTeams);
+            const seed1 = sorted[0];
+            const seed2 = sorted.find((t) => t.PoolID !== seed1.PoolID);
+            if (seed2) {
+              const poolXRest = sorted.filter(
+                (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID === seed1.PoolID
+              );
+              const poolYRest = sorted.filter(
+                (t) => t.PairID !== seed1.PairID && t.PairID !== seed2.PairID && t.PoolID !== seed1.PoolID
+              );
+              const interleaved = [seed1, seed2];
+              const maxLen = Math.max(poolXRest.length, poolYRest.length);
+              for (let i = 0; i < maxLen; i++) {
+                if (i < poolXRest.length) interleaved.push(poolXRest[i]);
+                if (i < poolYRest.length) interleaved.push(poolYRest[i]);
+              }
+              const seedByPairId = {};
+              interleaved.forEach((t, idx) => {
+                const seedNum = idx + 1;
+                const statusStr =
+                  targetQuals === 6 && seedNum <= 2
+                    ? 'SEMIFINAL_BYE'
+                    : targetQuals === 4
+                    ? 'SEMIFINAL'
+                    : 'QUARTERFINAL';
+                t.ProjectedSeed = seedNum;
+                t.ProjectedStatus = statusStr;
+                t.ProjectedBracket = 'WINNERS';
+                seedByPairId[t.PairID] = { seed: seedNum, status: statusStr };
+              });
+              lvlSt.winnersSeeds = interleaved;
+              Object.values(lvlSt.pools || {}).forEach((poolArr) => {
+                (poolArr || []).forEach((t) => {
+                  if (seedByPairId[t.PairID]) {
+                    t.ProjectedSeed = seedByPairId[t.PairID].seed;
+                    t.ProjectedStatus = seedByPairId[t.PairID].status;
+                    t.ProjectedBracket = 'WINNERS';
+                  }
+                });
+              });
+            }
+          }
           Object.values(lvlSt.pools || {}).forEach((poolArr) => {
             (poolArr || []).forEach((t) => {
               t.Player1Name = formatPlayerName(t.Player1Name);
@@ -7729,7 +7792,15 @@
       ) {
         return '<span class="tag tag-danger">Out</span>';
       }
-      if (team.ProjectedStatus === 'SEMIFINAL_BYE' || (targetQualifiers === 6 && seed <= 2)) {
+      const numPools = Object.keys(
+        (state.data.standings && state.data.standings[level] && state.data.standings[level].pools) || {}
+      ).length;
+      const isBye =
+        targetQualifiers === 6 &&
+        (numPools >= 2
+          ? Number(team.PoolRank) === 1
+          : team.ProjectedStatus === 'SEMIFINAL_BYE' || seed <= 2);
+      if (isBye) {
         return '<span class="tag tag-amber">★ 1st Rd Bye</span>';
       }
       return '<span class="tag tag-green">✓ In Playoffs</span>';
