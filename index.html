@@ -1512,7 +1512,7 @@
       <div id="scoreModalHint" style="font-size:0.78rem; color:var(--text-secondary); text-align:center; margin-bottom:8px; font-weight:600;"></div>
 
       <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-bottom:14px;">
-        Final score saves immediately — ask an organizer if you need a correction.
+        Saving your score automatically advances the next match on this court.
       </div>
 
       <div class="modal-Action-row" style="display:flex; justify-content:flex-end; gap:10px;">
@@ -3275,17 +3275,12 @@
       const allGames = (state.data && state.data.games) || [];
       const activeCourtGames = allGames.filter(
         (g) =>
-          g.Level === nextGame.Level &&
-          g.Stage === nextGame.Stage &&
           g.Status !== 'COMPLETED' &&
           g.Status !== 'BYE' &&
-          (g.Court || getDefaultCourtForGame(g)) === courtLabel
+          String(g.Court || getDefaultCourtForGame(g)).trim() === String(courtLabel || '').trim()
       );
       const idx = activeCourtGames.findIndex((g) => g.GameID === nextGame.GameID);
-      const hasLiveOnCourt = activeCourtGames.some(
-        (g) => (g.Status === 'LIVE' || g.Status === 'ON_COURT') && g.GameID !== nextGame.GameID
-      );
-      const gamesAhead = idx >= 0 ? idx : hasLiveOnCourt ? 1 : 0;
+      const gamesAhead = idx >= 0 ? idx : 0;
       const targetPts = Number(nextGame.TargetPoints) || 7;
       const minsPerGame = Math.max(5, Math.round(targetPts * 1.25));
       return {
@@ -3313,69 +3308,68 @@
 
       const announcements = [];
 
-      myGames
-        .filter((g) => g.Status === 'LIVE' || g.Status === 'ON_COURT')
-        .forEach((g) => {
-          const oppId = g.Team1ID === myPair.PairID ? g.Team2ID : g.Team1ID;
-          const oppName = g.Team1ID === myPair.PairID ? g.Team2Name : g.Team1Name;
-          const oppShort = getTeamShortName(oppId, oppName);
-          const oppPlayers = getTeamPlayersNames(oppId, oppName);
-          const winBy = getGameWinBy(g);
-          const oppPlayersSub =
-            oppPlayers && oppPlayers !== oppShort ? `${escapeHtml(oppPlayers)} • ` : '';
+      const uncompletedMyGames = myGames.filter(
+        (g) =>
+          g.Status !== 'COMPLETED' &&
+          g.Status !== 'BYE' &&
+          g.Team1ID &&
+          g.Team2ID &&
+          g.Team1ID !== 'BYE' &&
+          g.Team2ID !== 'BYE'
+      );
+
+      if (uncompletedMyGames.length > 0) {
+        const nextMatch = uncompletedMyGames[0];
+        const oppId = nextMatch.Team1ID === myPair.PairID ? nextMatch.Team2ID : nextMatch.Team1ID;
+        const oppName =
+          nextMatch.Team1ID === myPair.PairID ? nextMatch.Team2Name : nextMatch.Team1Name;
+        const oppShort = getTeamShortName(oppId, oppName);
+        const oppPlayers = getTeamPlayersNames(oppId, oppName);
+        const winBy = getGameWinBy(nextMatch);
+        const oppPlayersSub =
+          oppPlayers && oppPlayers !== oppShort ? `${escapeHtml(oppPlayers)} • ` : '';
+        const qInfo = getPlayerNextMatchQueueInfo(nextMatch);
+        const nextCourtLabel = qInfo.courtLabel || 'Assigned Court';
+
+        if (qInfo.gamesAhead === 0) {
           announcements.push(`
             <div class="announcement-card announcement-live">
               <div>
-                <span class="tag tag-green" style="margin-bottom:6px;">🚨 LIVE ON COURT • ${escapeHtml(g.Court || 'Assigned Court')}</span>
+                <span class="tag tag-green" style="margin-bottom:6px;">🟢 NOW PLAYING • ${escapeHtml(nextCourtLabel)}</span>
                 <div style="font-size:1.05rem; font-weight:800;">
                   vs. ${escapeHtml(oppShort)}
                 </div>
                 <div style="font-size:0.82rem; font-weight:500; color:var(--text-secondary); margin-top:2px;">
-                  ${oppPlayersSub}To ${g.TargetPoints} pts (Win by ${winBy})
+                  ${oppPlayersSub}To ${nextMatch.TargetPoints} pts (Win by ${winBy})
                 </div>
               </div>
-              <button class="btn btn-primary btn-lg" onclick="openScoreModal('${escapeHtml(g.GameID)}')">
+              <button class="btn btn-primary btn-lg" onclick="openScoreModal('${escapeHtml(nextMatch.GameID)}')">
                 🏓 Enter Score
               </button>
             </div>
           `);
-        });
-
-      const nextScheduled = myGames.find((g) => g.Status === 'SCHEDULED' || g.Status === 'QUEUED');
-      if (nextScheduled) {
-        const oppId =
-          nextScheduled.Team1ID === myPair.PairID ? nextScheduled.Team2ID : nextScheduled.Team1ID;
-        const oppName =
-          nextScheduled.Team1ID === myPair.PairID ? nextScheduled.Team2Name : nextScheduled.Team1Name;
-        const oppShort = getTeamShortName(oppId, oppName);
-        const oppPlayers = getTeamPlayersNames(oppId, oppName);
-        const nextWinBy = getGameWinBy(nextScheduled);
-        const oppPlayersSub =
-          oppPlayers && oppPlayers !== oppShort ? `${escapeHtml(oppPlayers)} • ` : '';
-        const qInfo = getPlayerNextMatchQueueInfo(nextScheduled);
-        const nextCourtLabel = qInfo.courtLabel;
-        const queueBadgeHtml =
-          qInfo.gamesAhead === 0
-            ? `<span class="tag tag-amber" style="margin-bottom:6px;">🔥 Up Next${nextCourtLabel ? ' • ' + escapeHtml(nextCourtLabel) : ''} • Court Ready</span>`
-            : qInfo.gamesAhead === 1
-            ? `<span class="tag tag-blue" style="margin-bottom:6px;">⏭️ On Deck${nextCourtLabel ? ' • ' + escapeHtml(nextCourtLabel) : ''} (1 game ahead • ~${qInfo.estWaitMins}m)</span>`
-            : `<span class="tag tag-blue" style="margin-bottom:6px;">⏳ Queue${nextCourtLabel ? ' • ' + escapeHtml(nextCourtLabel) : ''} (${qInfo.gamesAhead} ahead • ~${qInfo.estWaitMins}m)</span>`;
-        announcements.push(`
-          <div class="announcement-card announcement-upcoming">
-            <div>
-              ${queueBadgeHtml}
-              <div style="font-size:0.98rem; font-weight:700;">
-                vs. ${escapeHtml(oppShort)}
+        } else {
+          const queueBadgeHtml =
+            qInfo.gamesAhead === 1
+              ? `<span class="tag tag-amber" style="margin-bottom:6px;">⏭️ NEXT UP (ON DECK)${nextCourtLabel ? ' • ' + escapeHtml(nextCourtLabel) : ''} (1 game ahead • ~${qInfo.estWaitMins}m)</span>`
+              : `<span class="tag tag-blue" style="margin-bottom:6px;">⏳ Queue${nextCourtLabel ? ' • ' + escapeHtml(nextCourtLabel) : ''} (${qInfo.gamesAhead} ahead • ~${qInfo.estWaitMins}m)</span>`;
+          announcements.push(`
+            <div class="announcement-card announcement-upcoming">
+              <div>
+                ${queueBadgeHtml}
+                <div style="font-size:0.98rem; font-weight:700;">
+                  vs. ${escapeHtml(oppShort)}
+                </div>
+                <div style="font-size:0.8rem; font-weight:500; color:var(--text-secondary); margin-top:2px;">
+                  ${oppPlayersSub}To ${nextMatch.TargetPoints} pts (Win by ${winBy})
+                </div>
               </div>
-              <div style="font-size:0.8rem; font-weight:500; color:var(--text-secondary); margin-top:2px;">
-                ${oppPlayersSub}To ${nextScheduled.TargetPoints} pts (Win by ${nextWinBy})
-              </div>
+              <button class="btn btn-sm btn-outline" onclick="openScoreModal('${escapeHtml(nextMatch.GameID)}')">
+                🏓 Enter Score
+              </button>
             </div>
-            <button class="btn btn-sm btn-outline" onclick="openScoreModal('${escapeHtml(nextScheduled.GameID)}')">
-              🏓 Enter Score
-            </button>
-          </div>
-        `);
+          `);
+        }
       }
 
       const completedGames = myGames.filter((g) => g.Status === 'COMPLETED');
@@ -4338,10 +4332,15 @@
         games = allLevelGames.filter((g) => g.Team1ID === highlightPairId || g.Team2ID === highlightPairId);
       }
 
-      // Sort LIVE/ON_COURT first, then QUEUED/SCHEDULED, then COMPLETED while preserving chronological sequence within each tier
+      // Sort Now Playing first, then Next Up / Queued, then Completed while preserving chronological sequence within each tier
       games = [...games].sort((a, b) => {
-        const rank = (st) => (st === 'ON_COURT' || st === 'LIVE' ? 0 : st === 'COMPLETED' ? 2 : 1);
-        const rDiff = rank(a.Status) - rank(b.Status);
+        const rank = (gm) => {
+          if (gm.Status === 'COMPLETED') return 3;
+          if (gm.Status === 'BYE') return 4;
+          const q = getPlayerNextMatchQueueInfo(gm);
+          return q.gamesAhead === 0 ? 0 : q.gamesAhead === 1 ? 1 : 2;
+        };
+        const rDiff = rank(a) - rank(b);
         if (rDiff !== 0) return rDiff;
         return (seqByGameId[a.GameID] || 0) - (seqByGameId[b.GameID] || 0);
       });
@@ -4377,8 +4376,19 @@
                     const isMine =
                       highlightPairId &&
                       (g.Team1ID === highlightPairId || g.Team2ID === highlightPairId);
-                    const isLive = g.Status === 'LIVE' || g.Status === 'ON_COURT';
                     const isCompleted = g.Status === 'COMPLETED';
+                    const qInfo =
+                      !isCompleted && g.Status !== 'BYE'
+                        ? getPlayerNextMatchQueueInfo(g)
+                        : { gamesAhead: 99 };
+                    const isNowPlaying =
+                      !isCompleted &&
+                      g.Status !== 'BYE' &&
+                      g.Team1ID &&
+                      g.Team2ID &&
+                      qInfo.gamesAhead === 0;
+                    const isNextUp =
+                      !isCompleted && g.Status !== 'BYE' && qInfo.gamesAhead === 1;
                     const isGoldFinal =
                       g.PoolOrRound === 'Final' || String(g.GameID || '').endsWith('-FIN');
                     const isBronze =
@@ -4390,13 +4400,15 @@
                       : '';
                     const t1Win = isCompleted && g.WinnerTeamID === g.Team1ID;
                     const t2Win = isCompleted && g.WinnerTeamID === g.Team2ID;
-                    const statusBadge = isLive
-                      ? '<span class="tag tag-green">● LIVE</span>'
-                      : isCompleted
+                    const statusBadge = isCompleted
                       ? '<span class="tag tag-slate">✓ Final</span>'
+                      : isNowPlaying
+                      ? '<span class="tag tag-green">● Now Playing</span>'
+                      : isNextUp
+                      ? '<span class="tag tag-amber">⏭️ Next Up</span>'
                       : g.Status === 'BYE'
                       ? '<span class="tag tag-amber">BYE</span>'
-                      : '<span class="tag tag-blue">Scheduled</span>';
+                      : '<span class="tag tag-blue">Queued</span>';
 
                     let actionBtn = '';
                     const divPlayoffsStarted = (state.data.games || []).some(

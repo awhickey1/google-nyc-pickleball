@@ -1790,13 +1790,10 @@
               <span>🎾 Pool Play Match Dispatcher &amp; Score Sheet</span>
             </div>
             <div class="card-subtitle">
-              Launch queued games onto open courts or enter official match scores.
+              Matches advance automatically by court queue as scores are saved. Change any Court # below or in the 6-Court Floor Strip above.
             </div>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <button type="button" class="btn btn-sm btn-blue" onclick="handleLaunchNextOpenCourtMatches('ROUND_ROBIN')" title="Automatically launch the next queued game for each open court in this division">
-              📣 Launch Next Matches to Open Courts
-            </button>
             <div style="display:inline-flex; gap:4px; background:var(--bg-subtle); padding:3px; border-radius:8px; border:1px solid var(--border-light);" id="step4PoolFilterPills">
               <button id="step4PoolFilterAll" type="button" class="btn btn-sm btn-primary" data-pool="ALL" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('ALL')">All Pools</button>
               <button id="step4PoolFilterA" type="button" class="btn btn-sm btn-outline" data-pool="Pool A" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('Pool A')">Pool A</button>
@@ -1806,10 +1803,11 @@
               <input id="step4HideCompletedCheckbox" type="checkbox" onchange="renderStep4Section()">
               Hide Completed
             </label>
-            <select id="step4StatusFilter" class="select" style="width:170px; padding:5px 8px; font-size:0.78rem;" onchange="renderStep4Section()">
+            <select id="step4StatusFilter" class="select" style="width:176px; padding:5px 8px; font-size:0.78rem;" onchange="renderStep4Section()">
               <option value="ALL">All Statuses</option>
-              <option value="ON_COURT">● On Court</option>
-              <option value="QUEUED">Queued / Scheduled</option>
+              <option value="ON_COURT">● Now Playing</option>
+              <option value="NEXT_UP">⏭️ Next Up (On Deck)</option>
+              <option value="QUEUED">⏳ Queued</option>
               <option value="COMPLETED">✓ Completed</option>
             </select>
           </div>
@@ -1870,13 +1868,8 @@
               <span>🎾 Playoff Bracket Matches &amp; Score Entry</span>
             </div>
             <div class="card-subtitle">
-              Launch Quarterfinal, Semifinal, and Final games onto courts, input scores, and advance winners.
+              Quarterfinal, Semifinal, and Final matches queue onto courts automatically and advance winners when scores are saved.
             </div>
-          </div>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <button type="button" class="btn btn-sm btn-blue" onclick="handleLaunchNextOpenCourtMatches('WINNERS_BRACKET')" title="Automatically launch the next ready playoff match onto open division courts">
-              📣 Launch Next Matches to Open Courts
-            </button>
           </div>
         </div>
 
@@ -8349,13 +8342,46 @@
       }
     }
 
+    function getCourtQueuePosition(game) {
+      if (!game) return { statusKey: 'QUEUED', queueIdx: -1, queueLen: 0, courtName: '' };
+      const courtName = String(game.Court || getDefaultCourtForGame(game)).trim();
+      if (game.Status === 'COMPLETED') {
+        return { statusKey: 'COMPLETED', queueIdx: -1, queueLen: 0, courtName };
+      }
+      if (game.Status === 'BYE') {
+        return { statusKey: 'BYE', queueIdx: -1, queueLen: 0, courtName };
+      }
+      const allGames = (state.data && state.data.games) || [];
+      const courtQueue = allGames.filter(
+        (g) =>
+          g.Status !== 'COMPLETED' &&
+          g.Status !== 'BYE' &&
+          String(g.Court || getDefaultCourtForGame(g)).trim() === courtName
+      );
+      const queueIdx = courtQueue.findIndex((g) => g.GameID === game.GameID);
+      const isReady = Boolean(
+        game.Team1ID &&
+          game.Team2ID &&
+          game.Team1ID !== 'BYE' &&
+          game.Team2ID !== 'BYE'
+      );
+      if (queueIdx === 0 && isReady) {
+        return { statusKey: 'NOW_PLAYING', queueIdx: 0, queueLen: courtQueue.length, courtName };
+      }
+      if (queueIdx === 1 || (queueIdx === 0 && !isReady)) {
+        return { statusKey: 'NEXT_UP', queueIdx: Math.max(0, queueIdx), queueLen: courtQueue.length, courtName };
+      }
+      return { statusKey: 'QUEUED', queueIdx, queueLen: courtQueue.length, courtName };
+    }
+
     function getEligibleOverflowMatchesForCourt(courtName) {
       const allGames = state.data.games || [];
       const cleanCourt = String(courtName || '').trim();
       const busyTeams = {};
       const remainingByLevel = {};
       allGames.forEach((g) => {
-        if (g.Status === 'LIVE' || g.Status === 'ON_COURT') {
+        const qPos = getCourtQueuePosition(g);
+        if (qPos.statusKey === 'NOW_PLAYING') {
           if (g.Team1ID) busyTeams[g.Team1ID] = true;
           if (g.Team2ID) busyTeams[g.Team2ID] = true;
         }
@@ -8365,7 +8391,9 @@
       });
 
       const candidates = allGames.filter((g) => {
-        if (!g || (g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED')) return false;
+        if (!g || g.Status === 'COMPLETED' || g.Status === 'BYE') return false;
+        const qPos = getCourtQueuePosition(g);
+        if (qPos.statusKey === 'NOW_PLAYING') return false;
         if (!g.Team1ID || !g.Team2ID || g.Team1ID === 'BYE' || g.Team2ID === 'BYE') return false;
         if (busyTeams[g.Team1ID] || busyTeams[g.Team2ID]) return false;
         const gCourt = String(g.Court || getDefaultCourtForGame(g)).trim();
@@ -8380,29 +8408,22 @@
       return candidates;
     }
 
-    async function handlePullOverflowMatch(courtName, selectId) {
-      const selEl = selectId ? document.getElementById(selectId) : null;
-      const chosenGameId = selEl ? selEl.value : '';
-      if (!chosenGameId) {
-        showToast('No eligible queued overflow match selected.');
-        return;
-      }
+    async function handleReviseNextUpOnCourt(courtName, currentNextGameId, actionValue) {
+      if (!actionValue) return;
       try {
-        let data;
-        try {
-          data = await callBackend('pullOverflowMatchToCourt', courtName, chosenGameId);
-        } catch (rpcErr) {
-          if (String((rpcErr && rpcErr.message) || rpcErr).includes('pullOverflowMatchToCourt')) {
-            await callBackend('updateGameCourt', chosenGameId, courtName);
-            data = await callBackend('launchGameToCourt', chosenGameId);
-          } else {
-            throw rpcErr;
+        if (actionValue.startsWith('MOVE:')) {
+          const targetCourt = actionValue.slice(5);
+          if (targetCourt && currentNextGameId) {
+            await handleUpdateGameCourt(currentNextGameId, targetCourt);
+          }
+        } else if (actionValue.startsWith('PULL:')) {
+          const pickedGameId = actionValue.slice(5);
+          if (pickedGameId) {
+            await handleUpdateGameCourt(pickedGameId, courtName);
           }
         }
-        applyTournamentData(data);
-        showToast(`⚡ Pulled & launched ${chosenGameId} onto ${courtName}!`);
       } catch (err) {
-        showToast('Error: ' + err.message);
+        showToast('Error revising Next Up match: ' + err.message);
       }
     }
 
@@ -8418,77 +8439,93 @@
         'Court 6': 'Advanced',
       };
 
-      const liveCount = courts.filter((c) =>
-        allGames.some(
-          (g) =>
-            (g.Status === 'LIVE' || g.Status === 'ON_COURT') &&
-            String(g.Court || getDefaultCourtForGame(g)).trim() === c
-        )
-      ).length;
+      let activeCourtCount = 0;
 
       const cardsHtml = courts
         .map((courtName) => {
-          const liveGame = allGames.find(
+          const courtQueue = allGames.filter(
             (g) =>
-              (g.Status === 'LIVE' || g.Status === 'ON_COURT') &&
+              g.Status !== 'COMPLETED' &&
+              g.Status !== 'BYE' &&
               String(g.Court || getDefaultCourtForGame(g)).trim() === courtName
           );
-          const nextQueued = !liveGame
-            ? allGames.find(
-                (g) =>
-                  (g.Status === 'SCHEDULED' || g.Status === 'QUEUED') &&
-                  g.Team1ID &&
-                  g.Team2ID &&
-                  g.Team1ID !== 'BYE' &&
-                  g.Team2ID !== 'BYE' &&
-                  String(g.Court || getDefaultCourtForGame(g)).trim() === courtName
-              )
-            : null;
+          const firstReady =
+            courtQueue.length > 0 &&
+            courtQueue[0].Team1ID &&
+            courtQueue[0].Team2ID &&
+            courtQueue[0].Team1ID !== 'BYE' &&
+            courtQueue[0].Team2ID !== 'BYE'
+              ? courtQueue[0]
+              : null;
 
-          const overflowCandidates =
-            !liveGame && !nextQueued ? getEligibleOverflowMatchesForCourt(courtName) : [];
+          const nowPlayingGame = firstReady;
+          if (nowPlayingGame) activeCourtCount++;
 
-          const activeGame = liveGame || nextQueued;
-          const divName = activeGame ? activeGame.Level : defaultDivByCourt[courtName];
+          const nextUpGame = nowPlayingGame
+            ? courtQueue[1] || null
+            : courtQueue[0] || null;
+
+          const extraQueuedCount = Math.max(
+            0,
+            courtQueue.length - (nowPlayingGame ? 1 : 0) - (nextUpGame ? 1 : 0)
+          );
+
+          const overflowCandidates = getEligibleOverflowMatchesForCourt(courtName);
+
+          const primaryGame = nowPlayingGame || nextUpGame;
+          const divName = primaryGame ? primaryGame.Level : defaultDivByCourt[courtName];
           const shortDiv =
             divName === 'Intermediate Plus' ? 'Int+' : divName === 'Intermediate' ? 'Int' : 'Adv';
-          const courtKey = courtName.replace(/\s+/g, '');
-          const borderStyle = liveGame
+
+          const borderStyle = nowPlayingGame
             ? 'border:1.5px solid var(--brand-primary); background:#f0fdf4;'
-            : nextQueued
+            : nextUpGame
             ? 'border:1px solid var(--accent-blue-border); background:#ffffff;'
             : overflowCandidates.length
             ? 'border:1px dashed var(--accent-amber-border); background:var(--accent-amber-soft);'
-            : 'border:1px solid var(--border-light); background:var(--bg-subtle); opacity:0.85;';
+            : 'border:1px solid var(--border-light); background:var(--bg-subtle); opacity:0.88;';
 
-          let bodyContent = '';
-          if (liveGame) {
-            const t1 = formatTeamName(liveGame.Team1Name || 'Team 1');
-            const t2 = formatTeamName(liveGame.Team2Name || 'Team 2');
-            bodyContent = `
-              <div style="font-size:0.78rem; font-weight:700; color:var(--text-primary); line-height:1.3; margin-bottom:6px;">
+          const formatCandOption = (cand) => {
+            const cShortDiv =
+              cand.Level === 'Intermediate Plus'
+                ? 'Int+'
+                : cand.Level === 'Intermediate'
+                ? 'Int'
+                : 'Adv';
+            const cT1 = formatTeamName(cand.Team1Name || 'Team 1');
+            const cT2 = formatTeamName(cand.Team2Name || 'Team 2');
+            return `<option value="PULL:${escapeHtml(cand.GameID)}">[${cShortDiv}] ${escapeHtml(cT1)} vs ${escapeHtml(cT2)}</option>`;
+          };
+
+          // Slot 1: Now Playing
+          let nowPlayingHtml = '';
+          if (nowPlayingGame) {
+            const t1 = formatTeamName(nowPlayingGame.Team1Name || 'Team 1');
+            const t2 = formatTeamName(nowPlayingGame.Team2Name || 'Team 2');
+            const courtMoveOpts = COURT_OPTIONS.map(
+              (c) =>
+                `<option value="${escapeHtml(c)}" ${c === courtName ? 'selected' : ''}>${escapeHtml(c)}</option>`
+            ).join('');
+            nowPlayingHtml = `
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:3px;">
+                <span style="font-size:0.64rem; font-weight:800; color:#15803d; text-transform:uppercase; letter-spacing:0.02em;">🟢 Now Playing</span>
+                <select class="select" style="width:76px; padding:1px 4px; font-size:0.66rem; height:20px;" title="Change court for this match" onchange="handleUpdateGameCourt('${escapeHtml(nowPlayingGame.GameID)}', this.value)">
+                  ${courtMoveOpts}
+                </select>
+              </div>
+              <div style="font-size:0.77rem; font-weight:700; color:var(--text-primary); line-height:1.28; margin-bottom:6px;">
                 <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t1)}</div>
-                <div style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">vs ${escapeHtml(t2)}</div>
+                <div style="font-size:0.68rem; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">vs ${escapeHtml(t2)}</div>
               </div>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input id="stripScore1_${escapeHtml(liveGame.GameID)}" type="number" class="input mono" style="width:42px; padding:3px 4px; font-size:0.76rem; text-align:center;" value="${liveGame.Score1 !== '' ? liveGame.Score1 : ''}" placeholder="0">
+                <input id="stripScore1_${escapeHtml(nowPlayingGame.GameID)}" type="number" class="input mono" style="width:40px; padding:2px 4px; font-size:0.75rem; text-align:center;" value="${nowPlayingGame.Score1 !== '' ? nowPlayingGame.Score1 : ''}" placeholder="0">
                 <span style="font-size:0.72rem; color:var(--text-muted);">-</span>
-                <input id="stripScore2_${escapeHtml(liveGame.GameID)}" type="number" class="input mono" style="width:42px; padding:3px 4px; font-size:0.76rem; text-align:center;" value="${liveGame.Score2 !== '' ? liveGame.Score2 : ''}" placeholder="0">
-                <button type="button" class="btn btn-sm btn-primary" style="padding:3px 8px; font-size:0.72rem; margin-left:auto;" onclick="handleStripSaveScore('${escapeHtml(liveGame.GameID)}')">💾 Save</button>
+                <input id="stripScore2_${escapeHtml(nowPlayingGame.GameID)}" type="number" class="input mono" style="width:40px; padding:2px 4px; font-size:0.75rem; text-align:center;" value="${nowPlayingGame.Score2 !== '' ? nowPlayingGame.Score2 : ''}" placeholder="0">
+                <button type="button" class="btn btn-sm btn-primary" style="padding:3px 7px; font-size:0.71rem; margin-left:auto;" onclick="handleStripSaveScore('${escapeHtml(nowPlayingGame.GameID)}')">💾 Save</button>
               </div>
             `;
-          } else if (nextQueued) {
-            const t1 = formatTeamName(nextQueued.Team1Name || 'Team 1');
-            const t2 = formatTeamName(nextQueued.Team2Name || 'Team 2');
-            bodyContent = `
-              <div style="font-size:0.76rem; font-weight:700; color:var(--text-primary); line-height:1.3; margin-bottom:6px;">
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t1)}</div>
-                <div style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">vs ${escapeHtml(t2)}</div>
-              </div>
-              <button type="button" class="btn btn-sm btn-blue" style="width:100%; padding:3px 8px; font-size:0.72rem;" onclick="handleLaunchGame('${escapeHtml(nextQueued.GameID)}')">📣 Launch</button>
-            `;
-          } else if (overflowCandidates.length > 0) {
-            const optsHtml = overflowCandidates
+          } else {
+            const assignOpenOpts = overflowCandidates
               .map((cand) => {
                 const cShortDiv =
                   cand.Level === 'Intermediate Plus'
@@ -8501,14 +8538,85 @@
                 return `<option value="${escapeHtml(cand.GameID)}">[${cShortDiv}] ${escapeHtml(cT1)} vs ${escapeHtml(cT2)}</option>`;
               })
               .join('');
-            bodyContent = `
-              <select id="overflowSelect_${escapeHtml(courtKey)}" class="select" style="width:100%; padding:3px 6px; font-size:0.71rem; margin-bottom:5px;">
-                ${optsHtml}
-              </select>
-              <button type="button" class="btn btn-sm btn-amber" style="width:100%; padding:3px 8px; font-size:0.71rem;" onclick="handlePullOverflowMatch('${escapeHtml(courtName)}', 'overflowSelect_${escapeHtml(courtKey)}')">⚡ Pull &amp; Launch</button>
+            nowPlayingHtml = `
+              <div style="font-size:0.73rem; color:var(--text-muted); padding:3px 0 5px;">Court open — no active match</div>
+              ${
+                overflowCandidates.length > 0
+                  ? `<select class="select" style="width:100%; padding:3px 6px; font-size:0.7rem;" onchange="if(this.value) handleUpdateGameCourt(this.value, '${escapeHtml(courtName)}')">
+                       <option value="">+ Assign Queued Match to ${escapeHtml(courtName)}...</option>
+                       ${assignOpenOpts}
+                     </select>`
+                  : ''
+              }
             `;
-          } else {
-            bodyContent = `<div style="font-size:0.74rem; color:var(--text-muted); padding:6px 0;">Court open / no queued games</div>`;
+          }
+
+          // Slot 2: Next Up (View & Revise right inside the strip!)
+          let nextUpHtml = '';
+          if (nextUpGame) {
+            const nt1 = formatTeamName(nextUpGame.Team1Name || 'TBD');
+            const nt2 = formatTeamName(nextUpGame.Team2Name || 'TBD');
+            const moveOtherCourtsOpts = COURT_OPTIONS.filter((c) => c !== courtName)
+              .map((c) => `<option value="MOVE:${escapeHtml(c)}">Move Next Up → ${escapeHtml(c)}</option>`)
+              .join('');
+            const sameCourtLaterOpts = courtQueue
+              .slice(nowPlayingGame ? 2 : 1)
+              .filter((g) => g.Team1ID && g.Team2ID)
+              .map((cand) => formatCandOption(cand))
+              .join('');
+            const crossCourtOpts = overflowCandidates
+              .slice(0, 8)
+              .map((cand) => formatCandOption(cand))
+              .join('');
+            nextUpHtml = `
+              <div style="border-top:1px dashed var(--border-light); margin-top:7px; padding-top:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:2px;">
+                  <span style="font-size:0.63rem; font-weight:800; color:var(--accent-blue); text-transform:uppercase;">⏭️ Next Up${extraQueuedCount > 0 ? ` (+${extraQueuedCount})` : ''}</span>
+                  <select class="select" style="width:76px; padding:1px 4px; font-size:0.65rem; height:19px;" title="Revise or move Next Up match" onchange="handleReviseNextUpOnCourt('${escapeHtml(courtName)}', '${escapeHtml(nextUpGame.GameID)}', this.value)">
+                    <option value="">Revise ▾</option>
+                    <optgroup label="Move Next Up to Court">
+                      ${moveOtherCourtsOpts}
+                    </optgroup>
+                    ${
+                      crossCourtOpts || sameCourtLaterOpts
+                        ? `<optgroup label="Pull Match to ${escapeHtml(courtName)}">${sameCourtLaterOpts}${crossCourtOpts}</optgroup>`
+                        : ''
+                    }
+                  </select>
+                </div>
+                <div style="font-size:0.71rem; font-weight:600; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(nt1)} vs ${escapeHtml(nt2)}">
+                  ${escapeHtml(nt1)} <span style="color:var(--text-muted); font-weight:400;">vs</span> ${escapeHtml(nt2)}
+                </div>
+              </div>
+            `;
+          } else if (nowPlayingGame) {
+            const assignNextOpts = overflowCandidates
+              .slice(0, 8)
+              .map((cand) => {
+                const cShortDiv =
+                  cand.Level === 'Intermediate Plus'
+                    ? 'Int+'
+                    : cand.Level === 'Intermediate'
+                    ? 'Int'
+                    : 'Adv';
+                const cT1 = formatTeamName(cand.Team1Name || 'Team 1');
+                const cT2 = formatTeamName(cand.Team2Name || 'Team 2');
+                return `<option value="${escapeHtml(cand.GameID)}">[${cShortDiv}] ${escapeHtml(cT1)} vs ${escapeHtml(cT2)}</option>`;
+              })
+              .join('');
+            nextUpHtml = `
+              <div style="border-top:1px dashed var(--border-light); margin-top:7px; padding-top:6px;">
+                <div style="font-size:0.64rem; font-weight:700; color:var(--text-muted); margin-bottom:3px;">⏭️ Next Up: None (last match)</div>
+                ${
+                  overflowCandidates.length > 0
+                    ? `<select class="select" style="width:100%; padding:2px 5px; font-size:0.67rem;" onchange="if(this.value) handleUpdateGameCourt(this.value, '${escapeHtml(courtName)}')">
+                         <option value="">+ Queue Overflow Match...</option>
+                         ${assignNextOpts}
+                       </select>`
+                    : ''
+                }
+              </div>
+            `;
           }
 
           return `
@@ -8516,16 +8624,15 @@
               <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:5px;">
                 <span class="mono" style="font-size:0.75rem; font-weight:800; color:var(--text-primary);">${escapeHtml(courtName)} <span style="font-weight:600; color:var(--text-secondary);">(${shortDiv})</span></span>
                 ${
-                  liveGame
-                    ? '<span class="tag tag-green" style="font-size:0.64rem; padding:1px 5px;">● LIVE</span>'
-                    : nextQueued
-                    ? '<span class="tag tag-blue" style="font-size:0.64rem; padding:1px 5px;">Queued</span>'
-                    : overflowCandidates.length
-                    ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 5px;">⚡ Overflow</span>'
-                    : '<span class="tag tag-slate" style="font-size:0.64rem; padding:1px 5px;">Open</span>'
+                  nowPlayingGame
+                    ? '<span class="tag tag-green" style="font-size:0.63rem; padding:1px 5px;">● Active</span>'
+                    : nextUpGame
+                    ? '<span class="tag tag-blue" style="font-size:0.63rem; padding:1px 5px;">Waiting</span>'
+                    : '<span class="tag tag-slate" style="font-size:0.63rem; padding:1px 5px;">Open</span>'
                 }
               </div>
-              ${bodyContent}
+              ${nowPlayingHtml}
+              ${nextUpHtml}
             </div>
           `;
         })
@@ -8536,7 +8643,7 @@
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; ${state.sixCourtStripMinimized ? '' : 'margin-bottom:8px;'}">
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <span style="font-size:0.84rem; font-weight:800; color:var(--text-primary);">🏟️ All 6 Courts Live Floor Strip</span>
-              <span class="tag ${liveCount > 0 ? 'tag-green' : 'tag-slate'}" style="font-size:0.7rem;">${liveCount}/6 Courts Live</span>
+              <span class="tag ${activeCourtCount > 0 ? 'tag-green' : 'tag-slate'}" style="font-size:0.7rem;">${activeCourtCount}/6 Courts Active</span>
             </div>
             <button type="button" class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:0.72rem;" onclick="toggleSixCourtStrip()">
               ${state.sixCourtStripMinimized ? '▼ Show Courts 1–6' : '▲ Hide'}
@@ -8545,7 +8652,7 @@
           ${
             state.sixCourtStripMinimized
               ? ''
-              : `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); gap:8px;">${cardsHtml}</div>`
+              : `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(185px, 1fr)); gap:8px;">${cardsHtml}</div>`
           }
         </div>
       `;
@@ -8593,8 +8700,10 @@
         if (poolFilter !== 'ALL' && gPool !== poolFilter) return false;
         if (hideCompleted && g.Status === 'COMPLETED') return false;
         if (statusFilter === 'ALL') return true;
-        if (statusFilter === 'ON_COURT') return g.Status === 'ON_COURT' || g.Status === 'LIVE';
-        if (statusFilter === 'QUEUED') return g.Status === 'QUEUED' || g.Status === 'SCHEDULED';
+        const qPos = getCourtQueuePosition(g);
+        if (statusFilter === 'ON_COURT') return qPos.statusKey === 'NOW_PLAYING';
+        if (statusFilter === 'NEXT_UP') return qPos.statusKey === 'NEXT_UP';
+        if (statusFilter === 'QUEUED') return qPos.statusKey === 'NEXT_UP' || qPos.statusKey === 'QUEUED';
         return g.Status === statusFilter;
       });
 
@@ -8603,10 +8712,13 @@
         return;
       }
 
-      // Sort LIVE first, then QUEUED/SCHEDULED, then COMPLETED when viewing ALL
+      // Sort Now Playing first, then Next Up, then Queued, then Completed when viewing ALL
       const sorted = [...filtered].sort((a, b) => {
-        const rank = (st) => (st === 'ON_COURT' || st === 'LIVE' ? 0 : st === 'COMPLETED' ? 2 : 1);
-        const rDiff = rank(a.Status) - rank(b.Status);
+        const rank = (gm) => {
+          const k = getCourtQueuePosition(gm).statusKey;
+          return k === 'NOW_PLAYING' ? 0 : k === 'NEXT_UP' ? 1 : k === 'QUEUED' ? 2 : 3;
+        };
+        const rDiff = rank(a) - rank(b);
         if (rDiff !== 0) return rDiff;
         return 0;
       });
@@ -8629,15 +8741,19 @@
     }
 
     function renderGameRowHtml(g, isBracketRow) {
-      const isLive = g.Status === 'ON_COURT' || g.Status === 'LIVE';
+      const qPos = getCourtQueuePosition(g);
+      const isNowPlaying = qPos.statusKey === 'NOW_PLAYING';
+      const isNextUp = qPos.statusKey === 'NEXT_UP';
       const isCompleted = g.Status === 'COMPLETED';
       const statusTag = isCompleted
         ? '<span class="tag tag-slate">✓ Completed</span>'
-        : isLive
-        ? '<span class="tag tag-green">● LIVE On Court</span>'
+        : isNowPlaying
+        ? '<span class="tag tag-green">● Now Playing</span>'
+        : isNextUp
+        ? '<span class="tag tag-amber">⏭️ Next Up</span>'
         : g.Status === 'BYE'
         ? '<span class="tag tag-slate">BYE</span>'
-        : '<span class="tag tag-blue">Scheduled</span>';
+        : `<span class="tag tag-blue">Queued${qPos.queueIdx >= 2 ? ` (#${qPos.queueIdx + 1})` : ''}</span>`;
 
       const roundLabel = g.PoolOrRound || g.PoolOrBracket || g.RoundName || '';
       const poolBadgeClass =
@@ -8676,7 +8792,7 @@
       const targetPts =
         g.TargetPoints || (isBracketRow ? getDivisionBracketPoints(g.Level) : getDivisionRoundRobinPoints(g.Level));
       const winBy = getGameWinBy(g);
-      const rowStyle = isLive
+      const rowStyle = isNowPlaying
         ? 'background:#ecfdf5; border-left:4px solid var(--brand-primary);'
         : isCompleted
         ? 'opacity:0.72; background:var(--bg-subtle);'
@@ -8710,14 +8826,11 @@
           </td>
           <td>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="btn btn-sm btn-blue" onclick="handleLaunchGame('${escapeHtml(g.GameID)}')">
-                📣 Launch to Court
-              </button>
               <button class="btn btn-sm btn-primary" onclick="handleAdminSaveScore('${escapeHtml(g.GameID)}')">
                 💾 Save Score
               </button>
               ${
-                g.Status !== 'SCHEDULED' && g.Status !== 'QUEUED' && g.Status !== 'BYE'
+                isCompleted
                   ? `<button class="btn btn-sm btn-secondary" title="Reset score &amp; status back to Scheduled" onclick="handleResetGameScore('${escapeHtml(g.GameID)}')">↺ Reset</button>`
                   : ''
               }
@@ -9550,7 +9663,8 @@
               const isMedalColumn = roundName === 'Medal Rounds';
 
               const renderCardHtml = (m) => {
-                const isLive = m.Status === 'ON_COURT' || m.Status === 'LIVE';
+                const qPos = getCourtQueuePosition(m);
+                const isLive = qPos.statusKey === 'NOW_PLAYING';
                 const isDone = m.Status === 'COMPLETED';
                 const isBye = m.Status === 'BYE';
                 const isProjCard = isProjected || m.Status === 'PROJECTED';
@@ -9587,9 +9701,11 @@
                   : isBye
                   ? '<span class="tag tag-amber">BYE</span>'
                   : isLive
-                  ? `<span class="tag tag-green">LIVE • ${escapeHtml(effCourt || 'LIVE')}</span>`
+                  ? `<span class="tag tag-green">● Now Playing • ${escapeHtml(effCourt || 'Court')}</span>`
                   : isDone
                   ? `<span class="tag tag-slate">Final${effCourt ? ' • ' + escapeHtml(effCourt) : ''}</span>`
+                  : qPos.statusKey === 'NEXT_UP'
+                  ? `<span class="tag tag-amber">⏭️ Next Up • ${escapeHtml(effCourt || 'Court')}</span>`
                   : escapeHtml(effCourt || 'Court TBD');
 
                 const nextMainGameId = getMainBracketTargetGameId(m, qfCount);
@@ -9626,9 +9742,6 @@
                             <select id="bracketCourt_${escapeHtml(m.GameID)}" class="select" style="flex:1; padding:4px 6px; font-size:0.74rem;" onchange="handleUpdateGameCourt('${escapeHtml(m.GameID)}', this.value)">
                               ${renderCourtSelectOptionsHtml(effCourt)}
                             </select>
-                            <button type="button" class="btn btn-sm btn-blue" style="padding:4px 8px; font-size:0.72rem;" onclick="handleBracketLaunchGame('${escapeHtml(m.GameID)}')">
-                              📣 Launch
-                            </button>
                           </div>
                           <div class="bracket-ctrl-row">
                             <input id="bracketScore1_${escapeHtml(m.GameID)}" type="number" class="input mono" style="width:52px; padding:3px 5px; font-size:0.76rem; text-align:center;" value="${m.Score1 !== '' ? m.Score1 : ''}" placeholder="0">
@@ -9638,7 +9751,7 @@
                               💾 Save
                             </button>
                             ${
-                              m.Status !== 'SCHEDULED' && m.Status !== 'QUEUED'
+                              isDone
                                 ? `<button type="button" class="btn btn-sm btn-secondary" style="padding:4px 7px; font-size:0.72rem;" title="Reset score &amp; status back to Scheduled" onclick="handleResetGameScore('${escapeHtml(m.GameID)}')">↺</button>`
                                 : ''
                             }
