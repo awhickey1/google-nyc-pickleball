@@ -346,8 +346,7 @@
 
     .level-pill.active .div-dot,
     .checkin-filter-pill.active .div-dot {
-      background: #ffffff;
-      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+      display: none;
     }
 
     .level-pill.active[data-level="Intermediate"] {
@@ -525,16 +524,14 @@
     }
 
     .team-name-spotlight-label {
-      font-size: 0.72rem;
+      font-size: 0.9rem;
       font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #047857;
+      color: #064e3b;
     }
 
     .team-name-spotlight-value {
-      font-size: 0.92rem;
-      font-weight: 800;
+      font-size: 0.9rem;
+      font-weight: 500;
       color: #064e3b;
     }
 
@@ -723,6 +720,10 @@
       padding: 2px 0 10px;
     }
 
+    .bracket-round-pills.show-pills {
+      display: flex;
+    }
+
     .bracket-round-pill {
       appearance: none;
       border: 1px solid var(--border-strong);
@@ -822,6 +823,18 @@
       border-bottom: 1px solid rgba(194, 120, 56, 0.32);
     }
 
+    .bracket-match-card.completed-medal {
+      border: 1px solid var(--border-strong);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .bracket-match-card.completed-medal .bracket-match-header {
+      background: var(--bg-subtle);
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-light);
+    }
+
     .bracket-match-header {
       background: var(--bg-subtle);
       padding: 6px 10px;
@@ -853,6 +866,24 @@
       background: var(--brand-primary-soft);
       font-weight: 700;
       color: var(--brand-primary-hover);
+    }
+
+    .bracket-team-row.gold-winner {
+      background: linear-gradient(90deg, rgba(253, 224, 71, 0.45) 0%, rgba(254, 249, 195, 0.7) 100%);
+      font-weight: 700;
+      color: #713f12;
+    }
+
+    .bracket-team-row.silver-runnerup {
+      background: linear-gradient(90deg, rgba(203, 213, 225, 0.55) 0%, rgba(241, 245, 249, 0.8) 100%);
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .bracket-team-row.bronze-winner {
+      background: linear-gradient(90deg, rgba(224, 159, 103, 0.42) 0%, rgba(255, 237, 213, 0.75) 100%);
+      font-weight: 700;
+      color: #7c2d12;
     }
 
     .seed-pill {
@@ -1323,7 +1354,6 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <div class="brand-icon">🏓</div>
         <div style="min-width: 0;">
           <h1 id="headerTournamentName">Google Pickleball Classic</h1>
           <div class="brand-sub">
@@ -1361,7 +1391,7 @@
       </div>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
         <div id="activePlayerTeamSpotlight" class="team-name-spotlight" style="display:none; padding:4px 8px;">
-          <span class="team-name-spotlight-label">🏓</span>
+          <span class="team-name-spotlight-label">Team:</span>
           <span id="activePlayerTeamSpotlightName" class="team-name-spotlight-value">D5</span>
           <button id="editMyTeamNameBannerBtn" type="button" class="team-edit-cta-btn" style="padding:2px 7px; font-size:0.7rem;" onclick="openEditTeamNameModal()">
             ✏️ Edit
@@ -1447,7 +1477,7 @@
       <div id="playerPersonalActionsCard" class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">📣 Match Actions &amp; Court Calls</div>
+            <div class="card-title">📣 Match Actions</div>
           </div>
         </div>
         <div id="playerAnnouncementsFeed"></div>
@@ -3260,13 +3290,14 @@
       return tName;
     }
 
-    function formatTeamFocusHtml(pairId, fallbackName) {
+    function formatTeamFocusHtml(pairId, fallbackName, optMedalPrefix) {
+      const medalPrefix = optMedalPrefix ? `${optMedalPrefix} ` : '';
       const tName = getTeamShortName(pairId, fallbackName);
       const players = getTeamPlayersNames(pairId, fallbackName);
       if (players && tName !== players && !tName.includes(`(${players})`)) {
-        return `<span class="team-focus-stack"><span class="team-focus-name">${escapeHtml(tName)}</span><span class="team-focus-players">${escapeHtml(players)}</span></span>`;
+        return `<span class="team-focus-stack"><span class="team-focus-name">${medalPrefix}${escapeHtml(tName)}</span><span class="team-focus-players">${escapeHtml(players)}</span></span>`;
       }
-      return `<strong class="team-focus-name">${escapeHtml(tName)}</strong>`;
+      return `<strong class="team-focus-name">${medalPrefix}${escapeHtml(tName)}</strong>`;
     }
 
     function getPlayerNextMatchQueueInfo(nextGame) {
@@ -3290,15 +3321,19 @@
       };
     }
 
+    function hasPlayoffsStarted() {
+      return ((state.data && state.data.games) || []).some(
+        (x) => x.Stage === 'WINNERS_BRACKET' && x.Status !== 'PROJECTED'
+      );
+    }
+
     function renderPlayerAnnouncements(activePlayer, myPair) {
       const feedEl = document.getElementById('playerAnnouncementsFeed');
+      const cardEl = document.getElementById('playerPersonalActionsCard');
 
       if (!myPair) {
-        feedEl.innerHTML = `
-          <div style="padding:12px; color:var(--text-secondary); background:var(--bg-subtle); border-radius:var(--radius-sm); font-size:0.84rem;">
-            Checked in — waiting for coordinator pairing.
-          </div>
-        `;
+        if (cardEl) cardEl.style.display = 'none';
+        feedEl.innerHTML = '';
         return;
       }
 
@@ -3344,7 +3379,7 @@
                 </div>
               </div>
               <button class="btn btn-primary btn-lg" onclick="openScoreModal('${escapeHtml(nextMatch.GameID)}')">
-                🏓 Enter Score
+                Enter Score
               </button>
             </div>
           `);
@@ -3365,7 +3400,7 @@
                 </div>
               </div>
               <button class="btn btn-sm btn-outline" onclick="openScoreModal('${escapeHtml(nextMatch.GameID)}')">
-                🏓 Enter Score
+                Enter Score
               </button>
             </div>
           `);
@@ -3375,35 +3410,29 @@
       const completedGames = myGames.filter((g) => g.Status === 'COMPLETED');
       if (completedGames.length > 0) {
         const latest = completedGames[completedGames.length - 1];
-        const t1Short = getTeamShortName(latest.Team1ID, latest.Team1Name);
-        const t2Short = getTeamShortName(latest.Team2ID, latest.Team2Name);
-        const didWin = latest.WinnerTeamID === myPair.PairID;
-        const playoffsStarted = (state.data.games || []).some(
-          (x) => x.Level === myPair.Level && x.Stage === 'WINNERS_BRACKET' && x.Status === 'COMPLETED'
-        );
-        const canFixScore = latest.Stage === 'ROUND_ROBIN' && !playoffsStarted;
-        announcements.push(`
-          <div class="organizer-callout" style="margin-top:4px; padding:8px 12px; font-size:0.8rem; display:flex; align-items:center; gap:8px;">
-            <span>${didWin ? '🏆' : '✅'}</span>
-            <div>
-              <strong>Last Match:</strong>
-              ${escapeHtml(t1Short)} <strong class="mono">${latest.Score1} - ${latest.Score2}</strong> ${escapeHtml(t2Short)}
+        const canFixScore = latest.Stage === 'ROUND_ROBIN' && !hasPlayoffsStarted();
+        if (canFixScore) {
+          const t1Short = getTeamShortName(latest.Team1ID, latest.Team1Name);
+          const t2Short = getTeamShortName(latest.Team2ID, latest.Team2Name);
+          announcements.push(`
+            <div class="organizer-callout" style="margin-top:4px; padding:8px 12px; font-size:0.8rem; display:flex; align-items:center; gap:8px;">
+              <div>
+                <strong>Last Match:</strong>
+                ${escapeHtml(t1Short)} <strong class="mono">${latest.Score1} - ${latest.Score2}</strong> ${escapeHtml(t2Short)}
+              </div>
+              <button type="button" class="btn btn-sm btn-outline" style="margin-left:auto; padding:3px 9px; font-size:0.74rem; white-space:nowrap;" onclick="openScoreModal('${escapeHtml(latest.GameID)}')">✏️ Fix Score</button>
             </div>
-            ${
-              canFixScore
-                ? `<button type="button" class="btn btn-sm btn-outline" style="margin-left:auto; padding:3px 9px; font-size:0.74rem; white-space:nowrap;" onclick="openScoreModal('${escapeHtml(latest.GameID)}')">✏️ Fix Score</button>`
-                : ''
-            }
-          </div>
-        `);
-      } else if (announcements.length === 0) {
-        announcements.push(`
-          <div style="padding:12px 14px; color:var(--text-secondary); background:var(--bg-subtle); border-radius:var(--radius-sm); font-size:0.84rem;">
-            No active or queued matches for your team right now.
-          </div>
-        `);
+          `);
+        }
       }
 
+      if (announcements.length === 0) {
+        if (cardEl) cardEl.style.display = 'none';
+        feedEl.innerHTML = '';
+        return;
+      }
+
+      if (cardEl) cardEl.style.display = '';
       feedEl.innerHTML = announcements.join('');
     }
 
@@ -3426,7 +3455,10 @@
     }
 
     function setPlayerBracketRoundFilter(roundKey) {
-      state.bracketRoundFilter = roundKey || 'ALL';
+      const chosen = roundKey || 'ALL';
+      state.bracketRoundFilter = chosen;
+      if (!state.manualBracketRoundByLevel) state.manualBracketRoundByLevel = {};
+      state.manualBracketRoundByLevel[state.playerViewLevel || 'Intermediate'] = chosen;
       renderPlayerTournamentExplorer();
     }
 
@@ -3453,9 +3485,9 @@
             const isMine = m.key === myLevel;
             return `
               <button type="button" class="level-pill ${isActive ? 'active' : ''}" data-level="${escapeHtml(m.key)}" onclick="setPlayerViewLevel('${escapeHtml(m.key)}')">
-                <span class="div-dot"></span>
+                ${isActive ? '' : '<span class="div-dot"></span>'}
                 <span>${escapeHtml(m.short)}</span>
-                ${isMine ? '<span class="my-div-chip">★ Yours</span>' : ''}
+                ${isMine ? '<span class="my-div-chip">Yours</span>' : ''}
               </button>
             `;
           })
@@ -3489,9 +3521,9 @@
         quals === 6 &&
         (numPools >= 2 ? Number(r.PoolRank) === 1 : r.ProjectedStatus === 'SEMIFINAL_BYE' || seed <= 2);
       if (isBye) {
-        return '<span class="tag tag-amber" title="First-Round Semifinal Bye">★ 1st Rd Bye</span>';
+        return '<span class="tag tag-amber" title="First-Round Semifinal Bye">1st Rd Bye</span>';
       }
-      return '<span class="tag tag-green" title="Advances to Playoffs">✓ In Playoffs</span>';
+      return '<span class="tag tag-green" title="Advances to Playoffs">In Playoffs</span>';
     }
 
     function buildProjectedBracketGamesForLevel(level, winnersSeeds) {
@@ -3902,7 +3934,7 @@
           <div style="margin-bottom: 22px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
               <h3 style="font-size:0.98rem; font-weight:800; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                🏆 Playoff Bracket
+                Playoff Bracket
               </h3>
               <span class="tag tag-slate">Games to ${brPts} • Win by ${brWinBy}</span>
             </div>
@@ -3920,7 +3952,7 @@
 
       html += `
         <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <h3 style="font-size:0.98rem; font-weight:800;">📊 Pool Standings (${escapeHtml(level)})</h3>
+          <h3 style="font-size:0.98rem; font-weight:800;">Pool Standings</h3>
           <span class="tag tag-amber">Top ${targetQuals} Advance${targetQuals === 6 ? ' • #1–2 Bye' : ''}</span>
         </div>
         <div class="grid-2">
@@ -3939,8 +3971,8 @@
         html += `
           <div style="border:1px solid var(--border-light); border-radius:var(--radius-sm); overflow:hidden; background:var(--bg-surface);">
             <div style="background:var(--bg-subtle); padding:10px 12px; font-weight:800; font-size:0.85rem; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-              <span>🏊 ${escapeHtml(poolName)}</span>
-              <span class="tag tag-slate" style="font-size:0.72rem;">📍 ${escapeHtml(poolCourtLabel)} • ${rows.length} Teams</span>
+              <span>${escapeHtml(poolName)}</span>
+              <span class="tag tag-slate" style="font-size:0.72rem;">📍 ${escapeHtml(poolCourtLabel)}</span>
             </div>
             <div class="table-wrap" style="border:none;">
               <table>
@@ -4148,10 +4180,20 @@
       const roundsOrder = ['Quarterfinal', 'Semifinal', 'Medal Rounds'];
       const orderedKeys = roundsOrder.filter((r) => roundsMap[r] && roundsMap[r].length);
 
+      const semiGames = bracketGames.filter((g) => g.PoolOrRound === 'Semifinal');
+      const allSemisFinished =
+        !isProjected &&
+        semiGames.length >= 2 &&
+        semiGames.every((g) => g.Status === 'COMPLETED' || g.Status === 'BYE');
+      const divLevel =
+        (bracketGames[0] && bracketGames[0].Level) || state.playerViewLevel || 'Intermediate';
+      const manualFilter =
+        state.manualBracketRoundByLevel && state.manualBracketRoundByLevel[divLevel];
+      const defaultFilter =
+        allSemisFinished && orderedKeys.includes('Medal Rounds') ? 'Medal Rounds' : 'ALL';
+      const desiredFilter = manualFilter || defaultFilter;
       const activeRoundFilter =
-        state.bracketRoundFilter && orderedKeys.includes(state.bracketRoundFilter)
-          ? state.bracketRoundFilter
-          : 'ALL';
+        desiredFilter !== 'ALL' && orderedKeys.includes(desiredFilter) ? desiredFilter : 'ALL';
       const visibleKeys =
         activeRoundFilter === 'ALL'
           ? orderedKeys
@@ -4164,7 +4206,7 @@
       const roundPillsHtml =
         orderedKeys.length > 1
           ? `
-            <div class="bracket-round-pills">
+            <div class="bracket-round-pills ${allSemisFinished || activeRoundFilter !== 'ALL' ? 'show-pills' : ''}">
               <button type="button" class="bracket-round-pill ${activeRoundFilter === 'ALL' ? 'active' : ''}" onclick="setPlayerBracketRoundFilter('ALL')">
                 All Rounds
               </button>
@@ -4205,8 +4247,9 @@
               const isMedalColumn = roundName === 'Medal Rounds';
 
               const renderCardHtml = (m) => {
-                const t1Win = m.Status === 'COMPLETED' && m.WinnerTeamID === m.Team1ID;
-                const t2Win = m.Status === 'COMPLETED' && m.WinnerTeamID === m.Team2ID;
+                const isDone = m.Status === 'COMPLETED';
+                const t1Win = isDone && m.WinnerTeamID === m.Team1ID;
+                const t2Win = isDone && m.WinnerTeamID === m.Team2ID;
                 const isBye = m.Status === 'BYE';
                 const isLive = m.Status === 'LIVE' || m.Status === 'ON_COURT';
                 const isBronze =
@@ -4225,11 +4268,37 @@
                   isSixTeamBracket &&
                   isSemifinal &&
                   Number(m.Team2Seed) === 2;
+                const t1Medal = isDone
+                  ? isGoldFinal
+                    ? t1Win
+                      ? '🥇'
+                      : t2Win
+                      ? '🥈'
+                      : ''
+                    : isBronze
+                    ? t1Win
+                      ? '🥉'
+                      : ''
+                    : ''
+                  : '';
+                const t2Medal = isDone
+                  ? isGoldFinal
+                    ? t2Win
+                      ? '🥇'
+                      : t1Win
+                      ? '🥈'
+                      : ''
+                    : isBronze
+                    ? t2Win
+                      ? '🥉'
+                      : ''
+                    : ''
+                  : '';
 
                 const medalCardClass = isGoldFinal
-                  ? 'gold-match'
+                  ? `gold-match${isDone ? ' completed-medal' : ''}`
                   : isBronze
-                  ? 'bronze-match'
+                  ? `bronze-match${isDone ? ' completed-medal' : ''}`
                   : '';
                 const matchTitleBadge = escapeHtml(formatHumanMatchTitle(m));
 
@@ -4242,9 +4311,37 @@
                   m.Team1ID &&
                   m.Team2ID;
                 const nextMainGameId = getMainBracketTargetGameId(m, qfCount);
+                const t1RowClass =
+                  isDone && isGoldFinal
+                    ? t1Win
+                      ? 'gold-winner'
+                      : t2Win
+                      ? 'silver-runnerup'
+                      : ''
+                    : isDone && isBronze
+                    ? t1Win
+                      ? 'bronze-winner'
+                      : ''
+                    : t1Win || (isBye && m.Team1ID !== 'BYE')
+                    ? 'winner'
+                    : '';
+                const t2RowClass =
+                  isDone && isGoldFinal
+                    ? t2Win
+                      ? 'gold-winner'
+                      : t1Win
+                      ? 'silver-runnerup'
+                      : ''
+                    : isDone && isBronze
+                    ? t2Win
+                      ? 'bronze-winner'
+                      : ''
+                    : t2Win
+                    ? 'winner'
+                    : '';
 
                 const cardHtml = `
-                  <div class="bracket-match-card ${isLive ? 'live' : ''} ${medalCardClass}" data-game-id="${escapeHtml(m.GameID)}" data-next-game-id="${escapeHtml(nextMainGameId)}" style="${isMine ? 'box-shadow: 0 0 0 2px #059669;' : ''}">
+                  <div class="bracket-match-card ${isLive && !isGoldFinal && !isBronze ? 'live' : ''} ${medalCardClass}" data-game-id="${escapeHtml(m.GameID)}" data-next-game-id="${escapeHtml(nextMainGameId)}" style="${isMine && !isGoldFinal && !isBronze ? 'box-shadow: 0 0 0 2px #059669;' : ''}">
                     <div class="bracket-match-header">
                       <span style="font-weight:800;">${matchTitleBadge}</span>
                       <span>
@@ -4256,25 +4353,25 @@
                             : isLive
                             ? `<span class="tag tag-green">LIVE • ${escapeHtml(m.Court)}</span>`
                             : m.Status === 'COMPLETED'
-                            ? `<span class="tag tag-slate">Final${m.Court ? ' • ' + escapeHtml(m.Court) : ''}</span>`
+                            ? `<span class="tag tag-slate">${escapeHtml(m.Court || 'Final')}</span>`
                             : escapeHtml(m.Court || 'Court TBD')
                         }
                       </span>
                     </div>
-                    <div class="bracket-team-row ${t1Win || (isBye && m.Team1ID !== 'BYE') ? 'winner' : ''}">
+                    <div class="bracket-team-row ${t1RowClass}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
                         <div style="min-width:0; flex:1;">
-                          ${formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD')}
-                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
+                          ${formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD', t1Medal)}
+                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score1 !== '' ? m.Score1 : ''}</strong>
                     </div>
-                    <div class="bracket-team-row ${t2Win ? 'winner' : ''}">
+                    <div class="bracket-team-row ${t2RowClass}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
                         <div style="min-width:0; flex:1;">
-                          ${formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD')}
-                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
+                          ${formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD', t2Medal)}
+                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score2 !== '' ? m.Score2 : ''}</strong>
@@ -4282,7 +4379,7 @@
                     ${
                       canScore
                         ? `<div style="padding:6px 10px; background:var(--bg-subtle); border-top:1px solid var(--border-light);">
-                            <button class="btn btn-sm btn-primary" style="width:100%;" onclick="openScoreModal('${escapeHtml(m.GameID)}')">🏓 Enter Score</button>
+                            <button class="btn btn-sm btn-primary" style="width:100%;" onclick="openScoreModal('${escapeHtml(m.GameID)}')">Enter Score</button>
                           </div>`
                         : ''
                     }
@@ -4400,6 +4497,32 @@
                       : '';
                     const t1Win = isCompleted && g.WinnerTeamID === g.Team1ID;
                     const t2Win = isCompleted && g.WinnerTeamID === g.Team2ID;
+                    const t1SchedMedal = isCompleted
+                      ? isGoldFinal
+                        ? t1Win
+                          ? '🥇'
+                          : t2Win
+                          ? '🥈'
+                          : ''
+                        : isBronze
+                        ? t1Win
+                          ? '🥉'
+                          : ''
+                        : ''
+                      : '';
+                    const t2SchedMedal = isCompleted
+                      ? isGoldFinal
+                        ? t2Win
+                          ? '🥇'
+                          : t1Win
+                          ? '🥈'
+                          : ''
+                        : isBronze
+                        ? t2Win
+                          ? '🥉'
+                          : ''
+                        : ''
+                      : '';
                     const statusBadge = isCompleted
                       ? '<span class="tag tag-slate">✓ Final</span>'
                       : isNowPlaying
@@ -4411,9 +4534,7 @@
                       : '<span class="tag tag-blue">Queued</span>';
 
                     let actionBtn = '';
-                    const divPlayoffsStarted = (state.data.games || []).some(
-                      (x) => x.Level === level && x.Stage === 'WINNERS_BRACKET' && x.Status === 'COMPLETED'
-                    );
+                    const divPlayoffsStarted = hasPlayoffsStarted();
                     if (
                       Boolean(isMine) &&
                       g.Status !== 'BYE' &&
@@ -4424,7 +4545,7 @@
                       actionBtn = `
                         <div style="margin-top:10px;">
                           <button class="btn btn-sm btn-primary" style="width:100%; min-height:40px;" onclick="openScoreModal('${escapeHtml(g.GameID)}')">
-                            🏓 Enter Score
+                            Enter Score
                           </button>
                         </div>
                       `;
@@ -4457,7 +4578,7 @@
                         : `<span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px;">${escapeHtml(formatHumanMatchTitle(g))}</span>`;
 
                     return `
-                      <div class="schedule-match-card ${isMine ? 'mine' : ''} ${isLive ? 'live-card' : ''} ${isCompleted ? 'completed-card' : ''}" style="${medalScheduleStyle}">
+                      <div class="schedule-match-card ${isMine ? 'mine' : ''} ${isNowPlaying ? 'live-card' : ''} ${isCompleted ? 'completed-card' : ''}" style="${medalScheduleStyle}">
                         <div class="schedule-match-top">
                           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                             ${seqNum ? `<span class="tag tag-slate mono" style="font-size:0.68rem; padding:1px 6px;">Game #${seqNum}</span>` : ''}
@@ -4473,8 +4594,8 @@
                           <div class="schedule-team-line ${t1Win ? 'winner' : ''}">
                             <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
                               <div style="min-width:0; flex:1;">
-                                ${formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD')}
-                                ${t1HasScheduleBye ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
+                                ${formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD', t1SchedMedal)}
+                                ${t1HasScheduleBye ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">1st Rd Bye</span>' : ''}
                               </div>
                             </div>
                             <strong class="mono" style="font-size:1rem; flex-shrink:0;">${g.Score1 !== '' ? g.Score1 : '—'}</strong>
@@ -4482,8 +4603,8 @@
                           <div class="schedule-team-line ${t2Win ? 'winner' : ''}">
                             <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;">
                               <div style="min-width:0; flex:1;">
-                                ${formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD')}
-                                ${t2HasScheduleBye ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">★ 1st Rd Bye</span>' : ''}
+                                ${formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD', t2SchedMedal)}
+                                ${t2HasScheduleBye ? '<span class="tag tag-amber" style="font-size:0.62rem; padding:1px 5px; margin-top:2px;">1st Rd Bye</span>' : ''}
                               </div>
                             </div>
                             <strong class="mono" style="font-size:1rem; flex-shrink:0;">${g.Score2 !== '' ? g.Score2 : '—'}</strong>

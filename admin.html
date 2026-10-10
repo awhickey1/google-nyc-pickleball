@@ -444,6 +444,37 @@
       color: var(--brand-primary-hover);
     }
 
+    .step-tab.completed:not(.active) {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+      opacity: 0.62;
+    }
+
+    .step-tab.completed:not(.active):hover {
+      opacity: 0.85;
+      border-color: var(--border-strong);
+    }
+
+    .step-tab.completed .step-num {
+      background: #e2e8f0;
+      color: #64748b;
+    }
+
+    .step-tab.completed.active .step-num {
+      background: var(--brand-primary);
+      color: #ffffff;
+    }
+
+    .step-tab.completed:not(.active) .step-tab-title,
+    .step-tab.completed:not(.active) .step-tab-sub {
+      color: var(--text-muted);
+    }
+
+    .step-tab.in-progress:not(.active) .step-num {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
     /* Color-Coded Division Selector Pills */
     .level-pills {
       display: flex;
@@ -545,7 +576,7 @@
 
     .level-pill.active .div-dot,
     .div-switch-btn.active .div-dot {
-      background: #ffffff;
+      display: none;
     }
 
     .div-pill-count {
@@ -833,6 +864,18 @@
       border-bottom: 1px solid rgba(194, 120, 56, 0.32);
     }
 
+    .bracket-match-card.completed-medal {
+      border: 1px solid var(--border-strong);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .bracket-match-card.completed-medal .bracket-match-header {
+      background: var(--bg-subtle);
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-light);
+    }
+
     .bracket-match-header {
       background: var(--bg-subtle);
       padding: 6px 10px;
@@ -867,6 +910,24 @@
       background: var(--brand-primary-soft);
       font-weight: 700;
       color: var(--brand-primary-hover);
+    }
+
+    .bracket-team-row.gold-winner {
+      background: linear-gradient(90deg, rgba(253, 224, 71, 0.45) 0%, rgba(254, 249, 195, 0.7) 100%);
+      font-weight: 700;
+      color: #713f12;
+    }
+
+    .bracket-team-row.silver-runnerup {
+      background: linear-gradient(90deg, rgba(203, 213, 225, 0.55) 0%, rgba(241, 245, 249, 0.8) 100%);
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .bracket-team-row.bronze-winner {
+      background: linear-gradient(90deg, rgba(224, 159, 103, 0.42) 0%, rgba(255, 237, 213, 0.75) 100%);
+      font-weight: 700;
+      color: #7c2d12;
     }
 
     .seed-pill {
@@ -1112,7 +1173,6 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <div class="brand-icon">🏓</div>
         <div>
           <h1 id="headerTournamentName">Google Pickleball Classic — Coordinator Console</h1>
           <div class="brand-sub">
@@ -1419,34 +1479,37 @@
     <!-- 4-Step Coordinator Workflow Navigation -->
     <div class="step-tabs">
       <button id="stepTab1" class="step-tab active" onclick="setAdminStep('step1')">
-        <div class="step-num">1</div>
+        <div id="stepTab1Num" class="step-num">1</div>
         <div>
           <div class="step-tab-title">Players &amp; Check-In</div>
           <div id="stepTab1Sub" class="step-tab-sub">0/0 checked in</div>
         </div>
       </button>
       <button id="stepTab2" class="step-tab" onclick="setAdminStep('step2')">
-        <div class="step-num">2</div>
+        <div id="stepTab2Num" class="step-num">2</div>
         <div>
           <div class="step-tab-title">Team Formation</div>
           <div id="stepTab2Sub" class="step-tab-sub">0 teams • 0 unpaired</div>
         </div>
       </button>
       <button id="stepTab4" class="step-tab" onclick="setAdminStep('step4')">
-        <div class="step-num">3</div>
+        <div id="stepTab4Num" class="step-num">3</div>
         <div>
           <div class="step-tab-title">Pool Play Stage</div>
           <div id="stepTab4Sub" class="step-tab-sub">Waiting game creation</div>
         </div>
       </button>
       <button id="stepTab5" class="step-tab" onclick="setAdminStep('step5')">
-        <div class="step-num">4</div>
+        <div id="stepTab5Num" class="step-num">4</div>
         <div>
           <div class="step-tab-title">Playoffs Stage</div>
           <div id="stepTab5Sub" class="step-tab-sub">Waiting playoff starting</div>
         </div>
       </button>
     </div>
+
+    <!-- Cross-Division Pacing & Court Rebalance Recommendation Bar -->
+    <div id="pacingRecommendationBar" style="display:none; margin-bottom:16px;"></div>
 
     <!-- ================================================================== -->
     <!-- STEP 1: PLAYERS & CHECK-IN (CSV)                                   -->
@@ -1522,9 +1585,6 @@
             <button type="button" class="btn btn-sm btn-primary" onclick="handleCheckInAll(true)" title="Check in all active roster players">
               ✓ Check In All
             </button>
-            <button type="button" class="btn btn-sm btn-danger-outline" onclick="handleCheckInAll(false)" title="Reset check-in status for all players">
-              ↺ Reset Check-Ins
-            </button>
             <div class="level-pills" id="rosterLevelFilterPills">
               <button type="button" class="level-pill active" data-level="ALL" onclick="setRosterFilterLevel('ALL')">All</button>
               <button type="button" class="level-pill pill-int" data-level="Intermediate" onclick="setRosterFilterLevel('Intermediate')"><span class="div-dot"></span>Int</button>
@@ -1570,7 +1630,7 @@
           <div class="card-header">
             <div>
               <div class="card-title">
-                <span>✋ Option A: Manual &amp; Preferred Partner Pairing</span>
+                <span>Option A: Manual &amp; Preferred Partner Pairing</span>
               </div>
               <div class="card-subtitle">
                 Auto-pair preferred partners in 1 click or manually lock in any two players first.
@@ -1586,10 +1646,10 @@
 
           <div id="preferredPartnerAutoPairBar" style="background:var(--brand-primary-soft); border:1px solid var(--brand-primary-border); border-radius:var(--radius-sm); padding:9px 12px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
             <div style="font-size:0.8rem; color:var(--text-primary);">
-              <strong>🤝 Preferred Partners:</strong> <span id="preferredPartnerEligibleText">Checking roster for preferred partner matches...</span>
+              <strong>Preferred Partners:</strong> <span id="preferredPartnerEligibleText">Checking roster for preferred partner matches...</span>
             </div>
             <button id="autoPairPreferredBtn" type="button" class="btn btn-sm btn-primary" onclick="handleAutoPairPreferredPartners()">
-              🤝 Auto-Pair Preferred Partners
+              Auto-Pair Preferred Partners
             </button>
           </div>
 
@@ -1619,7 +1679,7 @@
           <div class="card-header">
             <div>
               <div class="card-title">
-                <span>🎲 Option B: Randomly Pair Remaining Players</span>
+                <span>Option B: Randomly Pair Remaining Players</span>
               </div>
               <div class="card-subtitle">
                 Automatically pairs remaining unpaired players in this division.
@@ -1663,7 +1723,7 @@
               <div id="skillSnakeCountsText" style="font-size:0.82rem; font-weight:600; color:var(--text-primary);"></div>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 <button class="btn btn-sm btn-outline" onclick="toggleQuickSkillDrawer()">
-                  🐍 Edit Unpaired Win Rates (1–5) &amp; Check-In
+                  Edit Unpaired Win Rates (1–5) &amp; Check-In
                 </button>
               </div>
             </div>
@@ -1765,8 +1825,7 @@
       <div class="card" style="padding:12px 16px; margin-bottom:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span style="font-size:0.95rem; font-weight:800; color:var(--text-primary);">🏊 Pool Play Stage</span>
-            <span style="font-size:0.78rem; color:var(--text-secondary);">Live standings &amp; court dispatch</span>
+            <span style="font-size:0.95rem; font-weight:800; color:var(--text-primary);">Pool Play Stage</span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-sm btn-outline" onclick="handleCreatePoolsForCurrentLevel()">
@@ -1787,7 +1846,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">
-              <span>🎾 Pool Play Match Dispatcher &amp; Score Sheet</span>
+              <span>Pool Play Match Dispatcher &amp; Score Sheet</span>
             </div>
             <div class="card-subtitle">
               Matches advance automatically by court queue as scores are saved. Change any Court # below or in the 6-Court Floor Strip above.
@@ -1800,16 +1859,9 @@
               <button id="step4PoolFilterB" type="button" class="btn btn-sm btn-outline" data-pool="Pool B" style="padding:4px 9px; font-size:0.75rem;" onclick="setStep4PoolFilter('Pool B')">Pool B</button>
             </div>
             <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.78rem; font-weight:600; color:var(--text-secondary); cursor:pointer; background:var(--bg-subtle); padding:5px 9px; border-radius:8px; border:1px solid var(--border-light);">
-              <input id="step4HideCompletedCheckbox" type="checkbox" onchange="renderStep4Section()">
+              <input id="step4HideCompletedCheckbox" type="checkbox" checked onchange="renderStep4Section()">
               Hide Completed
             </label>
-            <select id="step4StatusFilter" class="select" style="width:176px; padding:5px 8px; font-size:0.78rem;" onchange="renderStep4Section()">
-              <option value="ALL">All Statuses</option>
-              <option value="ON_COURT">● Now Playing</option>
-              <option value="NEXT_UP">⏭️ Next Up (On Deck)</option>
-              <option value="QUEUED">⏳ Queued</option>
-              <option value="COMPLETED">✓ Completed</option>
-            </select>
           </div>
         </div>
 
@@ -1851,8 +1903,8 @@
               Playoff matches play to <strong id="bracketPtsLabel">11 points (Win by 2)</strong>. Winners advance automatically when scores are saved.
             </div>
             <div style="margin-top:12px;">
-              <button class="btn btn-purple" onclick="openConfirmPlayoffsModal()">
-                🏆 Confirm &amp; Generate Playoff Bracket
+              <button id="step5GeneratePlayoffsBtn" class="btn btn-purple" onclick="openConfirmPlayoffsModal()">
+                Confirm &amp; Generate Playoff Bracket
               </button>
             </div>
           </div>
@@ -1865,7 +1917,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">
-              <span>🎾 Playoff Bracket Matches &amp; Score Entry</span>
+              <span>Playoff Bracket Matches &amp; Score Entry</span>
             </div>
             <div class="card-subtitle">
               Quarterfinal, Semifinal, and Final matches queue onto courts automatically and advance winners when scores are saved.
@@ -2538,6 +2590,22 @@
       return raw;
     }
 
+    function getTeamShortName(pairId, fallbackName) {
+      const cleanFallback = formatTeamName(fallbackName || 'TBD');
+      const pairs = (state.data && state.data.pairs) || [];
+      const pr =
+        (pairId && pairs.find((p) => p.PairID === pairId)) ||
+        (fallbackName &&
+          pairs.find(
+            (p) =>
+              p.TeamName === fallbackName ||
+              p.DefaultTeamCode === fallbackName ||
+              p.TeamCode === fallbackName
+          ));
+      if (!pr) return cleanFallback;
+      return formatTeamName(pr.TeamName || cleanFallback);
+    }
+
     function formatTeamWithPlayers(pairId, fallbackName) {
       const cleanFallback = formatTeamName(fallbackName || 'TBD');
       const pairs = (state.data && state.data.pairs) || [];
@@ -2564,7 +2632,8 @@
       return tName;
     }
 
-    function formatTeamFocusHtml(pairId, fallbackName) {
+    function formatTeamFocusHtml(pairId, fallbackName, optMedalPrefix) {
+      const medalPrefix = optMedalPrefix ? `${optMedalPrefix} ` : '';
       const cleanFallback = formatTeamName(fallbackName || 'TBD');
       const pairs = (state.data && state.data.pairs) || [];
       const pr =
@@ -2577,12 +2646,12 @@
               p.TeamCode === fallbackName
           ));
       if (!pr) {
-        return `<strong style="font-weight:700;">${escapeHtml(cleanFallback)}</strong>`;
+        return `<strong style="font-weight:700;">${medalPrefix}${escapeHtml(cleanFallback)}</strong>`;
       }
       const tName = formatTeamName(pr.TeamName || cleanFallback);
       const p1 = formatPlayerName(pr.Player1Name || '');
       const p2 = formatPlayerName(pr.Player2Name || '');
-      const primaryHtml = `<strong style="font-weight:700;">${escapeHtml(tName)}</strong>`;
+      const primaryHtml = `<strong style="font-weight:700;">${medalPrefix}${escapeHtml(tName)}</strong>`;
       if (p1 && p2) {
         const suffix = `(${p1} & ${p2})`;
         if (!tName.includes(suffix) && tName !== `${p1} & ${p2}`) {
@@ -5848,7 +5917,7 @@
       const launchBtn = document.getElementById('toggleLaunchBtn');
       if (launchBtn) {
         if (isLive) {
-          launchBtn.textContent = '⏸ Return to Waiting / Check-In Mode';
+          launchBtn.textContent = '⏸ Return to Check-In Mode';
           launchBtn.className = 'btn btn-sm btn-outline';
           launchBtn.style.background = 'rgba(255,255,255,0.12)';
           launchBtn.style.color = '#fff';
@@ -6202,16 +6271,54 @@
       const unpairedCount = activePlayers.filter((p) => p.CheckedIn && !p.PairID).length;
 
       const rrGames = (state.data.games || []).filter(
-        (g) => g.Level === lvl && g.Stage === 'ROUND_ROBIN'
+        (g) => g.Level === lvl && g.Stage === 'ROUND_ROBIN' && g.Status !== 'BYE'
       );
       const rrFinished = rrGames.filter((g) => g.Status === 'COMPLETED').length;
       const rrEst = getPoolPlayTimeEstimate(lvl);
 
       const brGames = (state.data.games || []).filter(
-        (g) => g.Level === lvl && g.Stage === 'WINNERS_BRACKET' && g.Status !== 'BYE'
+        (g) =>
+          g.Level === lvl &&
+          g.Stage === 'WINNERS_BRACKET' &&
+          g.Status !== 'BYE' &&
+          g.Status !== 'PROJECTED'
       );
       const brFinished = brGames.filter((g) => g.Status === 'COMPLETED').length;
       const brEst = getPlayoffsTimeEstimate(lvl);
+
+      const step1Completed =
+        (rosterCount > 0 && checkedInCount === rosterCount) ||
+        (lvlPairs.length >= 2 && unpairedCount < 2) ||
+        rrGames.length > 0;
+      const step1InProgress = !step1Completed && (checkedInCount > 0 || rosterCount > 0);
+
+      const step2Completed =
+        (lvlPairs.length >= 2 && unpairedCount < 2) ||
+        rrGames.length > 0;
+      const step2InProgress = !step2Completed && (lvlPairs.length > 0 || step1Completed);
+
+      const step4Completed = rrGames.length > 0 && rrFinished === rrGames.length;
+      const step4InProgress = !step4Completed && rrGames.length > 0;
+
+      const step5Completed = brGames.length > 0 && brFinished === brGames.length;
+      const step5InProgress = !step5Completed && brGames.length > 0;
+
+      const applyStepVisual = (tabId, numId, defaultNum, isCompleted, isInProgress) => {
+        const tabEl = document.getElementById(tabId);
+        const numEl = document.getElementById(numId);
+        if (tabEl) {
+          tabEl.classList.toggle('completed', Boolean(isCompleted));
+          tabEl.classList.toggle('in-progress', Boolean(!isCompleted && isInProgress));
+        }
+        if (numEl) {
+          numEl.textContent = isCompleted ? '✓' : isInProgress ? '⏳' : String(defaultNum);
+        }
+      };
+
+      applyStepVisual('stepTab1', 'stepTab1Num', 1, step1Completed, step1InProgress);
+      applyStepVisual('stepTab2', 'stepTab2Num', 2, step2Completed, step2InProgress);
+      applyStepVisual('stepTab4', 'stepTab4Num', 3, step4Completed, step4InProgress);
+      applyStepVisual('stepTab5', 'stepTab5Num', 4, step5Completed, step5InProgress);
 
       const sub1 = document.getElementById('stepTab1Sub');
       if (sub1) {
@@ -6245,6 +6352,7 @@
     function renderActiveStep() {
       renderDivisionPills('globalDivisionPills');
       renderStepTabStatuses();
+      renderPacingRecommendationBar();
       renderTournamentStatusDropdown();
       if (state.adminStep === 'step1') renderStep1Section();
       else if (state.adminStep === 'step2') renderStep2Section();
@@ -6288,22 +6396,204 @@
       }
     }
 
+    function hasSimultaneousTeamConflict(allGames, candidateGame, targetCourt) {
+      if (!candidateGame || !targetCourt) return true;
+      const cleanTarget = String(targetCourt).trim();
+      const srcCourt = String(candidateGame.Court || getDefaultCourtForGame(candidateGame)).trim();
+      const t1 = candidateGame.Team1ID;
+      const t2 = candidateGame.Team2ID;
+      if (!t1 || !t2 || t1 === 'BYE' || t2 === 'BYE') return true;
+
+      const queuesByCourt = {};
+      (allGames || []).forEach((g) => {
+        if (!g || g.Status === 'COMPLETED' || g.Status === 'BYE' || g.Status === 'PROJECTED') {
+          return;
+        }
+        const c =
+          g.GameID === candidateGame.GameID
+            ? cleanTarget
+            : String(g.Court || getDefaultCourtForGame(g)).trim();
+        if (!queuesByCourt[c]) queuesByCourt[c] = [];
+        queuesByCourt[c].push(g);
+      });
+
+      const targetQueue = queuesByCourt[cleanTarget] || [];
+      const mySimIdx = targetQueue.findIndex((g) => g.GameID === candidateGame.GameID);
+      if (mySimIdx < 0) return true;
+
+      for (const [courtName, queue] of Object.entries(queuesByCourt)) {
+        for (let idx = 0; idx < queue.length; idx++) {
+          const other = queue[idx];
+          if (other.GameID === candidateGame.GameID) continue;
+          const sharesTeam =
+            other.Team1ID === t1 ||
+            other.Team2ID === t1 ||
+            other.Team1ID === t2 ||
+            other.Team2ID === t2;
+          if (!sharesTeam) continue;
+
+          if (other.Status === 'LIVE' || other.Status === 'ON_COURT') return true;
+          if (idx <= mySimIdx) return true;
+          if (mySimIdx === 0 && courtName !== srcCourt && idx === 1) return true;
+        }
+      }
+      return false;
+    }
+
+    function getPacingRebalanceRecommendation() {
+      try {
+        const allGames = state.data.games || [];
+        const activeDivs = LEVELS.map((lvl) => {
+          const prs = (state.data.pairs || []).filter((p) => p.Level === lvl).length;
+          const rrEst = getPoolPlayTimeEstimate(lvl);
+          const brEst = getPlayoffsTimeEstimate(lvl);
+          const rrActualGames = allGames.filter(
+            (g) => g.Level === lvl && g.Stage === 'ROUND_ROBIN' && g.Status !== 'BYE'
+          );
+          const brActualGames = allGames.filter(
+            (g) =>
+              g.Level === lvl &&
+              g.Stage === 'WINNERS_BRACKET' &&
+              g.Status !== 'BYE' &&
+              g.Status !== 'PROJECTED'
+          );
+          const hasActivity = prs >= 2 || rrActualGames.length > 0 || brActualGames.length > 0;
+          const remMins = (rrEst.remainingMinutes || 0) + (brEst.remainingMinutes || 0);
+          const defaultCourts =
+            lvl === 'Intermediate'
+              ? ['Court 1', 'Court 2']
+              : lvl === 'Intermediate Plus'
+              ? ['Court 3', 'Court 4']
+              : ['Court 5', 'Court 6'];
+          const courts =
+            Array.isArray(rrEst.courts) && rrEst.courts.length > 0 ? rrEst.courts : defaultCourts;
+
+          return {
+            lvl,
+            hasActivity,
+            remMins,
+            courts,
+          };
+        }).filter((d) => d.hasActivity);
+
+        if (activeDivs.length < 2) return null;
+
+        const sortedByRem = [...activeDivs].sort((a, b) => b.remMins - a.remMins);
+        const slowDiv = sortedByRem[0];
+        const fastDiv = sortedByRem[sortedByRem.length - 1];
+        if (!slowDiv || !fastDiv || slowDiv.lvl === fastDiv.lvl) return null;
+
+        const diffMins = slowDiv.remMins - fastDiv.remMins;
+        if (diffMins <= 25) return null;
+
+        // Sort courts in fastDiv by fewest uncompleted games
+        const courtQueueCounts = {};
+        allGames.forEach((g) => {
+          if (g.Status === 'COMPLETED' || g.Status === 'BYE' || g.Status === 'PROJECTED') return;
+          const c = String(g.Court || getDefaultCourtForGame(g)).trim();
+          courtQueueCounts[c] = (courtQueueCounts[c] || 0) + 1;
+        });
+        const sortedTargetCourts = [...fastDiv.courts].sort(
+          (a, b) => (courtQueueCounts[a] || 0) - (courtQueueCounts[b] || 0)
+        );
+
+        // Pick next queued (non-NOW_PLAYING) conflict-free match from slowDiv not already on fastDiv's courts
+        let targetCourt = sortedTargetCourts[0];
+        let candidateGame = null;
+        for (const tCourt of sortedTargetCourts) {
+          const match = allGames.find((g) => {
+            if (g.Level !== slowDiv.lvl) return false;
+            if (
+              g.Status === 'COMPLETED' ||
+              g.Status === 'BYE' ||
+              g.Status === 'PROJECTED' ||
+              g.Status === 'LIVE' ||
+              g.Status === 'ON_COURT'
+            ) {
+              return false;
+            }
+            if (!g.Team1ID || !g.Team2ID || g.Team1ID === 'BYE' || g.Team2ID === 'BYE') {
+              return false;
+            }
+            const qPos = getCourtQueuePosition(g);
+            if (qPos.statusKey === 'NOW_PLAYING') return false;
+            const curCourt = String(g.Court || getDefaultCourtForGame(g)).trim();
+            if (fastDiv.courts.includes(curCourt)) return false;
+            return !hasSimultaneousTeamConflict(allGames, g, tCourt);
+          });
+          if (match) {
+            targetCourt = tCourt;
+            candidateGame = match;
+            break;
+          }
+        }
+
+        if (!candidateGame) return null;
+
+        const t1Short = getTeamShortName(candidateGame.Team1ID, candidateGame.Team1Name);
+        const t2Short = getTeamShortName(candidateGame.Team2ID, candidateGame.Team2Name);
+
+        return {
+          slowDiv,
+          fastDiv,
+          diffMins,
+          targetCourt,
+          candidateGame,
+          t1Short,
+          t2Short,
+        };
+      } catch (err) {
+        console.warn('Pacing recommendation warning:', err);
+        return null;
+      }
+    }
+
+    async function handleApplyPacingRecommendation(gameId, targetCourt) {
+      if (!gameId || !targetCourt) return;
+      await handleUpdateGameCourt(gameId, targetCourt);
+    }
+
+    function renderPacingRecommendationHtml(rec, compact) {
+      if (!rec) return '';
+      const diffFormatted = formatHoursMinutes(rec.diffMins);
+      const matchDetail = rec.candidateGame
+        ? ` — move <strong>${escapeHtml(rec.t1Short)} vs ${escapeHtml(rec.t2Short)}</strong> (<span class="mono">${escapeHtml(rec.candidateGame.GameID)}</span>) to <strong>${escapeHtml(rec.targetCourt)}</strong>`
+        : ` — move a queued <strong>${escapeHtml(rec.slowDiv.lvl)}</strong> match to <strong>${escapeHtml(rec.fastDiv.lvl)} (${escapeHtml(rec.targetCourt)})</strong>`;
+      const btnHtml = rec.candidateGame
+        ? `<button type="button" class="btn btn-sm btn-primary" style="white-space:nowrap; flex-shrink:0;" onclick="handleApplyPacingRecommendation('${escapeHtml(rec.candidateGame.GameID)}', '${escapeHtml(rec.targetCourt)}')">Move ${escapeHtml(rec.candidateGame.GameID)} → ${escapeHtml(rec.targetCourt)}</button>`
+        : `<button type="button" class="btn btn-sm btn-outline" style="white-space:nowrap; flex-shrink:0;" onclick="jumpFromStatusDropdown('${escapeHtml(rec.slowDiv.lvl)}', 'step4')">View ${escapeHtml(rec.slowDiv.lvl)} Queue →</button>`;
+
+      return `
+        <div style="${compact ? 'grid-column: 1 / -1; ' : ''}display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:#fffbeb; border:1px solid #f59e0b; border-radius:8px; padding:10px 14px; font-size:0.8rem; color:#78350f;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span>⏳ <strong>Pacing Suggestion:</strong> <strong>${escapeHtml(rec.fastDiv.lvl)}</strong> (${formatHoursMinutes(rec.fastDiv.remMins)} left) is <strong>${diffFormatted}</strong> ahead of <strong>${escapeHtml(rec.slowDiv.lvl)}</strong> (${formatHoursMinutes(rec.slowDiv.remMins)} left)${matchDetail}</span>
+          </div>
+          ${btnHtml}
+        </div>
+      `;
+    }
+
+    function renderPacingRecommendationBar() {
+      const barEl = document.getElementById('pacingRecommendationBar');
+      if (!barEl) return;
+      const rec = getPacingRebalanceRecommendation();
+      if (!rec) {
+        barEl.style.display = 'none';
+        barEl.innerHTML = '';
+        return;
+      }
+      barEl.style.display = '';
+      barEl.innerHTML = renderPacingRecommendationHtml(rec, false);
+    }
+
     function renderTournamentStatusDropdown() {
       const container = document.getElementById('tournamentStatusDropdownBody');
       if (!container) return;
 
-      const isLive = state.data.settings && state.data.settings.TournamentStatus === 'LIVE';
-      let totalPlayers = 0;
-      let totalCheckedIn = 0;
-      let totalPairs = 0;
-      let totalPoolDone = 0;
-      let totalPoolAll = 0;
-      let totalPlayoffDone = 0;
-      let totalPlayoffAll = 0;
-      let maxDivMinutesRemaining = 0;
-
-      const divCardsHtml = LEVELS.map((lvl) => {
-        const activeList = (state.data.players || []).filter((p) => p.Level === lvl && !isWaitlistPlayer(p));
+      const divDataList = LEVELS.map((lvl) => {
+        const activeList = (state.data.players || []).filter(
+          (p) => p.Level === lvl && !isWaitlistPlayer(p)
+        );
         const chkActive = activeList.filter((p) => p.CheckedIn).length;
         const uncheckedCount = Math.max(0, activeList.length - chkActive);
         const unpairedCount = activeList.filter((p) => p.CheckedIn && !p.PairID).length;
@@ -6324,155 +6614,203 @@
           (g) => g.Level === lvl && g.Stage === 'ROUND_ROBIN' && g.Status !== 'BYE'
         );
         const brActualGames = (state.data.games || []).filter(
-          (g) => g.Level === lvl && g.Stage === 'WINNERS_BRACKET' && g.Status !== 'BYE'
+          (g) =>
+            g.Level === lvl &&
+            g.Stage === 'WINNERS_BRACKET' &&
+            g.Status !== 'BYE' &&
+            g.Status !== 'PROJECTED'
         );
 
         const divTotalRemMins = (rrEst.remainingMinutes || 0) + (brEst.remainingMinutes || 0);
-        if (divTotalRemMins > maxDivMinutesRemaining) {
-          maxDivMinutesRemaining = divTotalRemMins;
-        }
 
-        totalPlayers += activeList.length;
-        totalCheckedIn += chkActive;
-        totalPairs += prs;
-        totalPoolDone += rrEst.finishedGames;
-        totalPoolAll += rrEst.totalGames;
-        totalPlayoffDone += brEst.finishedGames;
-        totalPlayoffAll += brEst.totalGames;
+        return {
+          lvl,
+          activeList,
+          chkActive,
+          uncheckedCount,
+          unpairedCount,
+          prs,
+          countInfo,
+          numPools,
+          rrEst,
+          brEst,
+          compactCourtsLabel,
+          rrActualGames,
+          brActualGames,
+          divTotalRemMins,
+        };
+      });
 
-        const poolFormatText = numPools === 1 ? '1 pool' : `${numPools} pools`;
-        const playoffFormatText =
-          brEst.actualQualifiers === 6
-            ? 'top 6 (byes)'
-            : `top ${brEst.actualQualifiers}`;
+      const maxDivMinutesRemaining = Math.max(
+        0,
+        ...divDataList.map((d) => d.divTotalRemMins)
+      );
 
-        // Build Remaining Actions Needed list
-        const actions = [];
-        if (uncheckedCount > 0 || activeList.length === 0) {
-          actions.push({
-            label:
-              activeList.length === 0
-                ? '📥 Import / Add Players (Step 1)'
-                : `✓ Check In ${uncheckedCount} Player${uncheckedCount === 1 ? '' : 's'} (Step 1)`,
-            step: 'step1',
-            urgent: true,
-          });
-        }
-        if (prs < 2 || unpairedCount >= 2) {
-          actions.push({
-            label:
-              prs === 0
-                ? '🤝 Create & Pair Teams (Step 2)'
-                : `🤝 Pair ${unpairedCount} Unpaired (Step 2)`,
-            step: 'step2',
-            urgent: uncheckedCount === 0,
-          });
-        }
-        if (rrActualGames.length === 0) {
-          actions.push({
-            label: '📅 Create Pool Play Games (Step 3)',
-            step: 'step4',
-            urgent: prs >= 2 && uncheckedCount === 0,
-          });
-        } else if (rrEst.remainingGames > 0) {
-          actions.push({
-            label: `🏓 Finish ${rrEst.remainingGames} Pool Game${rrEst.remainingGames === 1 ? '' : 's'} (Step 3)`,
-            step: 'step4',
-            urgent: true,
-          });
-        }
-        if (brActualGames.length === 0) {
-          actions.push({
-            label: '🏆 Create Playoff Bracket (Step 4)',
-            step: 'step5',
-            urgent: rrActualGames.length > 0 && rrEst.remainingGames === 0,
-          });
-        } else if (brEst.remainingGames > 0) {
-          actions.push({
-            label: `🥇 Finish ${brEst.remainingGames} Playoff Game${brEst.remainingGames === 1 ? '' : 's'} (Step 4)`,
-            step: 'step5',
-            urgent: rrEst.remainingGames === 0,
-          });
-        }
+      const divCardsHtml = divDataList
+        .map((d) => {
+          const {
+            lvl,
+            activeList,
+            chkActive,
+            uncheckedCount,
+            unpairedCount,
+            prs,
+            countInfo,
+            numPools,
+            rrEst,
+            brEst,
+            compactCourtsLabel,
+            rrActualGames,
+            brActualGames,
+            divTotalRemMins,
+          } = d;
 
-        const actionsHtml =
-          actions.length === 0
-            ? `<div style="font-size:0.75rem; font-weight:700; color:var(--success-text); background:var(--success-soft); border:1px solid var(--success-border); border-radius:6px; padding:6px 9px;">✅ Division Complete! All matches finished</div>`
-            : actions
-                .map(
-                  (act) => `
-                  <button type="button" onclick="jumpFromStatusDropdown('${escapeHtml(lvl)}', '${act.step}')" style="display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; font-size:0.73rem; font-weight:700; padding:5px 8px; border-radius:6px; cursor:pointer; border:1px solid ${act.urgent ? 'var(--brand-primary)' : 'var(--border-light)'}; background:${act.urgent ? 'var(--brand-soft)' : '#fff'}; color:${act.urgent ? 'var(--brand-primary)' : 'var(--text-secondary)'};">
-                    <span>${act.label}</span>
-                    <span>→</span>
-                  </button>
-                `
-                )
-                .join('');
+          const poolFormatText = numPools === 1 ? '1 pool' : `${numPools} pools`;
+          const playoffFormatText =
+            brEst.actualQualifiers === 6
+              ? 'top 6 (byes)'
+              : `top ${brEst.actualQualifiers}`;
 
-        return `
-          <div class="settings-dropdown-section" style="display:flex; flex-direction:column; gap:10px; border:1px solid ${prs > 0 && countInfo.isFlagged ? 'var(--danger-border)' : 'var(--border-light)'};">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
-              ${renderLevelBadge(lvl)}
-              <span class="mono" style="font-size:0.71rem; color:var(--text-muted);">${escapeHtml(compactCourtsLabel)}</span>
-            </div>
+          const checkInDone =
+            (activeList.length > 0 && uncheckedCount === 0) ||
+            (prs >= 2 && unpairedCount < 2) ||
+            rrActualGames.length > 0;
+          const checkInInProgress = !checkInDone && chkActive > 0;
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.78rem;">
-              <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
-                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Check-Ins</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${chkActive} / ${activeList.length}</div>
-                <div style="font-size:0.68rem; color:var(--text-secondary);">${uncheckedCount === 0 && activeList.length > 0 ? 'All checked in' : `${uncheckedCount} remaining`}</div>
-              </div>
-              <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
-                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Teams</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${prs} Teams</div>
-                <div style="font-size:0.68rem; color:var(--text-secondary);">${unpairedCount > 0 ? `${unpairedCount} unpaired` : prs > 0 ? 'Paired' : 'Not paired yet'}</div>
-              </div>
-              <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
-                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Pool</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${rrEst.finishedGames} / ${rrEst.totalGames}</div>
-                <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35; margin-top:2px;">games completed • ${poolFormatText} • to ${rrEst.targetPoints}pts win by ${rrEst.winBy} • ~${rrEst.formattedRemaining} left</div>
-              </div>
-              <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;">
-                <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Playoff</div>
-                <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${brEst.finishedGames} / ${brEst.totalGames}</div>
-                <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35; margin-top:2px;">games completed • ${playoffFormatText} • to ${brEst.targetPoints}pts win by ${brEst.winBy} • ~${brEst.formattedRemaining} left</div>
-              </div>
-            </div>
+          const teamsDone =
+            (prs >= 2 && unpairedCount < 2) || rrActualGames.length > 0;
+          const teamsInProgress = !teamsDone && prs > 0;
 
-            <div style="background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:7px 9px; display:flex; align-items:center; justify-content:space-between; font-size:0.76rem;">
-              <span style="color:var(--text-secondary); font-weight:700;">⏱ Est. Time Left:</span>
-              <strong class="mono" style="color:var(--text-primary); font-size:0.84rem;">${formatHoursMinutes(divTotalRemMins)}</strong>
-            </div>
+          const poolDone = rrActualGames.length > 0 && rrEst.remainingGames === 0;
+          const poolInProgress = !poolDone && rrActualGames.length > 0;
 
-            <div style="display:flex; flex-direction:column; gap:5px; margin-top:auto;">
-              <div style="font-size:0.66rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.03em;">
-                Remaining Actions Needed
-              </div>
-              ${actionsHtml}
-            </div>
-          </div>
-        `;
-      }).join('');
+          const playoffDone = brActualGames.length > 0 && brEst.remainingGames === 0;
+          const playoffInProgress = !playoffDone && brActualGames.length > 0;
 
-      const liveBannerHtml = `
-        <div class="settings-dropdown-section" style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:${isLive ? 'var(--success-soft)' : 'var(--warning-soft)'}; border-color:${isLive ? 'var(--success-border)' : 'var(--warning-border)'};">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <span class="tag ${isLive ? 'tag-green' : 'tag-amber'}" style="font-size:0.76rem; padding:4px 10px;">
-              ${isLive ? '🟢 TOURNAMENT LIVE' : '⏳ WAITING / CHECK-IN MODE (NOT LIVE)'}
-            </span>
-            <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary);">
-              ✓ <strong>${totalCheckedIn}/${totalPlayers}</strong> Checked In • 🤝 <strong>${totalPairs}</strong> Teams • 🏓 <strong>${totalPoolDone}/${totalPoolAll}</strong> Pool Games Completed • 🏆 <strong>${totalPlayoffDone}/${totalPlayoffAll}</strong> Playoff Games Completed • ⏱ Est. <strong>${formatHoursMinutes(maxDivMinutesRemaining)}</strong> Remaining
-            </span>
-          </div>
-          ${
-            !isLive
-              ? `<button type="button" class="btn btn-sm btn-amber" onclick="closeTournamentStatusDropdown(); handleToggleTournamentStatus();">🚀 Make Tournament Go Live</button>`
-              : ''
+          const isSlowestDiv =
+            maxDivMinutesRemaining > 0 && divTotalRemMins === maxDivMinutesRemaining;
+
+          // Build Remaining Actions Needed list
+          const actions = [];
+          if (activeList.length === 0) {
+            actions.push({
+              label: '📥 Import / Add Players (Step 1)',
+              step: 'step1',
+              urgent: true,
+            });
           }
-        </div>
-      `;
+          if (prs < 2 || unpairedCount >= 2) {
+            actions.push({
+              label:
+                prs === 0
+                  ? '🤝 Create & Pair Teams (Step 2)'
+                  : `🤝 Pair ${unpairedCount} Unpaired (Step 2)`,
+              step: 'step2',
+              urgent: activeList.length > 0,
+            });
+          }
+          if (rrActualGames.length === 0) {
+            actions.push({
+              label: '📅 Create Pool Play Games (Step 3)',
+              step: 'step4',
+              urgent: prs >= 2 && unpairedCount < 2,
+            });
+          } else if (rrEst.remainingGames > 0) {
+            actions.push({
+              label: `🏓 Finish ${rrEst.remainingGames} Pool Game${rrEst.remainingGames === 1 ? '' : 's'} (Step 3)`,
+              step: 'step4',
+              urgent: true,
+            });
+          }
+          if (brActualGames.length === 0) {
+            actions.push({
+              label: '🏆 Create Playoff Bracket (Step 4)',
+              step: 'step5',
+              urgent: rrActualGames.length > 0 && rrEst.remainingGames === 0,
+            });
+          } else if (brEst.remainingGames > 0) {
+            actions.push({
+              label: `🥇 Finish ${brEst.remainingGames} Playoff Game${brEst.remainingGames === 1 ? '' : 's'} (Step 4)`,
+              step: 'step5',
+              urgent: rrEst.remainingGames === 0,
+            });
+          }
 
-      container.innerHTML = liveBannerHtml + divCardsHtml;
+          const actionsHtml =
+            actions.length === 0
+              ? `<div style="font-size:0.75rem; font-weight:700; color:var(--success-text); background:var(--success-soft); border:1px solid var(--success-border); border-radius:6px; padding:6px 9px;">✅ Division Complete! All matches finished</div>`
+              : actions
+                  .map(
+                    (act) => `
+                    <button type="button" onclick="jumpFromStatusDropdown('${escapeHtml(lvl)}', '${act.step}')" style="display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; font-size:0.73rem; font-weight:700; padding:5px 8px; border-radius:6px; cursor:pointer; border:1px solid ${act.urgent ? 'var(--brand-primary)' : 'var(--border-light)'}; background:${act.urgent ? 'var(--brand-soft)' : '#fff'}; color:${act.urgent ? 'var(--brand-primary)' : 'var(--text-secondary)'};">
+                      <span>${act.label}</span>
+                      <span>→</span>
+                    </button>
+                  `
+                  )
+                  .join('');
+
+          const cellStyle = (done) =>
+            done
+              ? 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; opacity:0.6;'
+              : 'background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:6px 8px;';
+
+          const estTimeStyle = isSlowestDiv
+            ? 'background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; padding:7px 9px; display:flex; align-items:center; justify-content:space-between; font-size:0.76rem;'
+            : divTotalRemMins === 0
+            ? 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 9px; display:flex; align-items:center; justify-content:space-between; font-size:0.76rem; opacity:0.6;'
+            : 'background:#fff; border:1px solid var(--border-light); border-radius:6px; padding:7px 9px; display:flex; align-items:center; justify-content:space-between; font-size:0.76rem;';
+
+          return `
+            <div class="settings-dropdown-section" style="display:flex; flex-direction:column; gap:10px; border:1px solid ${prs > 0 && countInfo.isFlagged ? 'var(--danger-border)' : 'var(--border-light)'};">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+                ${renderLevelBadge(lvl)}
+                <span class="mono" style="font-size:0.71rem; color:var(--text-muted);">${escapeHtml(compactCourtsLabel)}</span>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.78rem;">
+                <div style="${cellStyle(checkInDone)}">
+                  <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">${checkInInProgress ? '⏳ ' : checkInDone ? '✓ ' : ''}Check-Ins</div>
+                  <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${chkActive} / ${activeList.length}</div>
+                  <div style="font-size:0.68rem; color:var(--text-secondary);">${uncheckedCount === 0 && activeList.length > 0 ? 'All checked in' : `${uncheckedCount} remaining`}</div>
+                </div>
+                <div style="${cellStyle(teamsDone)}">
+                  <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">${teamsInProgress ? '⏳ ' : teamsDone ? '✓ ' : ''}Teams</div>
+                  <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${prs} Teams</div>
+                  <div style="font-size:0.68rem; color:var(--text-secondary);">${unpairedCount > 0 ? `${unpairedCount} unpaired` : prs > 0 ? 'Paired' : 'Not paired yet'}</div>
+                </div>
+                <div style="${cellStyle(poolDone)}">
+                  <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">${poolInProgress ? '⏳ ' : poolDone ? '✓ ' : ''}Pool</div>
+                  <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${rrEst.finishedGames} / ${rrEst.totalGames}</div>
+                  <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35; margin-top:2px;">${poolDone ? 'games completed' : `games completed • ${poolFormatText} • to ${rrEst.targetPoints}pts win by ${rrEst.winBy} • ~${rrEst.formattedRemaining} left`}</div>
+                </div>
+                <div style="${cellStyle(playoffDone)}">
+                  <div style="font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">${playoffInProgress ? '⏳ ' : playoffDone ? '✓ ' : ''}Playoff</div>
+                  <div style="font-weight:800; color:var(--text-primary); margin-top:2px;">${brEst.finishedGames} / ${brEst.totalGames}</div>
+                  <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35; margin-top:2px;">${playoffDone ? 'games completed' : `games completed • ${playoffFormatText} • to ${brEst.targetPoints}pts win by ${brEst.winBy} • ~${brEst.formattedRemaining} left`}</div>
+                </div>
+              </div>
+
+              <div style="${estTimeStyle}">
+                <span style="color:${isSlowestDiv ? '#991b1b' : 'var(--text-secondary)'}; font-weight:700;">⏱ Est. Time Left:</span>
+                <strong class="mono" style="color:${isSlowestDiv ? '#991b1b' : 'var(--text-primary)'}; font-size:0.84rem;">${formatHoursMinutes(divTotalRemMins)}</strong>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:5px; margin-top:auto;">
+                <div style="font-size:0.66rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.03em;">
+                  Remaining Actions Needed
+                </div>
+                ${actionsHtml}
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      const pacingRec = getPacingRebalanceRecommendation();
+      const pacingRecHtml = pacingRec ? renderPacingRecommendationHtml(pacingRec, true) : '';
+
+      container.innerHTML = divCardsHtml + pacingRecHtml;
     }
 
     // ========================================================================
@@ -6606,7 +6944,7 @@
             .sort((a, b) => formatPlayerName(a).localeCompare(formatPlayerName(b)));
 
           const currentPartnerOptHtml = pair && currentPartnerLdap
-            ? `<option value="${escapeHtml(currentPartnerLdap)}" selected>🤝 ${escapeHtml(currentPartnerName)} (@${escapeHtml(currentPartnerLdap)})</option>`
+            ? `<option value="${escapeHtml(currentPartnerLdap)}" selected>${escapeHtml(currentPartnerName)} (@${escapeHtml(currentPartnerLdap)})</option>`
             : '';
 
           const unpairedGroupHtml = unpairedCandidates.length
@@ -6646,8 +6984,8 @@
               <td>
                 ${
                   p.CheckedIn
-                    ? '<span class="tag tag-green">✓ Checked In</span>'
-                    : '<span class="tag tag-amber">⏳ Not Checked In</span>'
+                    ? '<span class="tag tag-green">TRUE</span>'
+                    : '<span class="tag tag-danger">FALSE</span>'
                 }
               </td>
               <td>
@@ -6698,8 +7036,7 @@
                   ${
                     pair
                       ? `<div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
-                           <span class="tag tag-blue" style="font-size:0.68rem; padding:1px 6px;" title="Team Name">🏓 ${escapeHtml(formatTeamName(pair.TeamName))}</span>
-                           ${pair.PoolID ? `<span class="tag tag-slate" style="font-size:0.68rem; padding:1px 6px;">${escapeHtml(pair.PoolID)}</span>` : ''}
+                           <span class="tag tag-blue" style="font-size:0.68rem; padding:1px 6px;" title="Team Name">${escapeHtml(formatTeamName(pair.TeamName))}</span>
                          </div>`
                       : ''
                   }
@@ -7532,17 +7869,17 @@
       const prefBtnEl = document.getElementById('autoPairPreferredBtn');
       if (prefTextEl) {
         if (totalPrefPairs > 0) {
-          prefTextEl.innerHTML = `🤝 <strong>${totalPrefPairs} preferred partner pair${totalPrefPairs === 1 ? '' : 's'}</strong> ready in ${escapeHtml(lvl)} (${mutualPrefPairs} mutual${oneWayPrefPairs > 0 ? `, ${oneWayPrefPairs} one-way` : ''})`;
+          prefTextEl.innerHTML = `<strong>${totalPrefPairs} preferred partner pair${totalPrefPairs === 1 ? '' : 's'}</strong> ready in ${escapeHtml(lvl)} (${mutualPrefPairs} mutual${oneWayPrefPairs > 0 ? `, ${oneWayPrefPairs} one-way` : ''})`;
         } else {
-          prefTextEl.innerHTML = `🤝 No unpaired preferred-partner matches remaining in ${escapeHtml(lvl)}${manualOnlyCheckedIn && notCheckedInUnpaired.length > 0 ? ' (among checked-in players)' : ''}`;
+          prefTextEl.innerHTML = `No unpaired preferred-partner matches remaining in ${escapeHtml(lvl)}${manualOnlyCheckedIn && notCheckedInUnpaired.length > 0 ? ' (among checked-in players)' : ''}`;
         }
       }
       if (prefBtnEl) {
         prefBtnEl.disabled = totalPrefPairs === 0;
         prefBtnEl.textContent =
           totalPrefPairs > 0
-            ? `🤝 Auto-Pair ${totalPrefPairs} Preferred Partner${totalPrefPairs === 1 ? '' : 's'}`
-            : '🤝 Auto-Pair Preferred Partners';
+            ? `Auto-Pair ${totalPrefPairs} Preferred Partner${totalPrefPairs === 1 ? '' : 's'}`
+            : 'Auto-Pair Preferred Partners';
       }
 
       const currentMode = state.randomPairingMode || 'SKILL_SNAKE';
@@ -8084,9 +8421,9 @@
           ? Number(team.PoolRank) === 1
           : team.ProjectedStatus === 'SEMIFINAL_BYE' || seed <= 2);
       if (isBye) {
-        return '<span class="tag tag-amber">★ 1st Rd Bye</span>';
+        return '<span class="tag tag-amber">1st Rd Bye</span>';
       }
-      return '<span class="tag tag-green">✓ In Playoffs</span>';
+      return '<span class="tag tag-green">In Playoffs</span>';
     }
 
     function renderPoolsCardsHtml(lvl) {
@@ -8106,8 +8443,7 @@
               return `
                 <div class="card" style="margin-bottom:0;">
                   <div class="card-header">
-                    <span class="card-title">🏊 ${escapeHtml(poolName)}</span>
-                    <span class="tag tag-blue">📍 ${escapeHtml(poolCourt ? poolCourt + ' • ' : '')}${teams.length} Teams</span>
+                    <span class="card-title">${escapeHtml(poolName)}</span>
                   </div>
                   <div class="table-wrap">
                     <table>
@@ -8377,27 +8713,25 @@
     function getEligibleOverflowMatchesForCourt(courtName) {
       const allGames = state.data.games || [];
       const cleanCourt = String(courtName || '').trim();
-      const busyTeams = {};
       const remainingByLevel = {};
       allGames.forEach((g) => {
-        const qPos = getCourtQueuePosition(g);
-        if (qPos.statusKey === 'NOW_PLAYING') {
-          if (g.Team1ID) busyTeams[g.Team1ID] = true;
-          if (g.Team2ID) busyTeams[g.Team2ID] = true;
-        }
-        if (g.Status !== 'COMPLETED' && g.Status !== 'BYE') {
+        if (g.Status !== 'COMPLETED' && g.Status !== 'BYE' && g.Status !== 'PROJECTED') {
           remainingByLevel[g.Level] = (remainingByLevel[g.Level] || 0) + 1;
         }
       });
 
       const candidates = allGames.filter((g) => {
-        if (!g || g.Status === 'COMPLETED' || g.Status === 'BYE') return false;
+        if (!g || g.Status === 'COMPLETED' || g.Status === 'BYE' || g.Status === 'PROJECTED') {
+          return false;
+        }
         const qPos = getCourtQueuePosition(g);
-        if (qPos.statusKey === 'NOW_PLAYING') return false;
+        if (qPos.statusKey === 'NOW_PLAYING' || g.Status === 'LIVE' || g.Status === 'ON_COURT') {
+          return false;
+        }
         if (!g.Team1ID || !g.Team2ID || g.Team1ID === 'BYE' || g.Team2ID === 'BYE') return false;
-        if (busyTeams[g.Team1ID] || busyTeams[g.Team2ID]) return false;
         const gCourt = String(g.Court || getDefaultCourtForGame(g)).trim();
-        return gCourt !== cleanCourt;
+        if (gCourt === cleanCourt) return false;
+        return !hasSimultaneousTeamConflict(allGames, g, cleanCourt);
       });
 
       candidates.sort((a, b) => {
@@ -8571,7 +8905,7 @@
             nextUpHtml = `
               <div style="border-top:1px dashed var(--border-light); margin-top:7px; padding-top:6px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:2px;">
-                  <span style="font-size:0.63rem; font-weight:800; color:var(--accent-blue); text-transform:uppercase;">⏭️ Next Up${extraQueuedCount > 0 ? ` (+${extraQueuedCount})` : ''}</span>
+                  <span style="font-size:0.63rem; font-weight:800; color:var(--accent-blue); text-transform:uppercase;">Next Up${extraQueuedCount > 0 ? ` (+${extraQueuedCount})` : ''}</span>
                   <select class="select" style="width:76px; padding:1px 4px; font-size:0.65rem; height:19px;" title="Revise or move Next Up match" onchange="handleReviseNextUpOnCourt('${escapeHtml(courtName)}', '${escapeHtml(nextUpGame.GameID)}', this.value)">
                     <option value="">Revise ▾</option>
                     <optgroup label="Move Next Up to Court">
@@ -8606,7 +8940,7 @@
               .join('');
             nextUpHtml = `
               <div style="border-top:1px dashed var(--border-light); margin-top:7px; padding-top:6px;">
-                <div style="font-size:0.64rem; font-weight:700; color:var(--text-muted); margin-bottom:3px;">⏭️ Next Up: None (last match)</div>
+                <div style="font-size:0.64rem; font-weight:700; color:var(--text-muted); margin-bottom:3px;">Next Up: None (last match)</div>
                 ${
                   overflowCandidates.length > 0
                     ? `<select class="select" style="width:100%; padding:2px 5px; font-size:0.67rem;" onchange="if(this.value) handleUpdateGameCourt(this.value, '${escapeHtml(courtName)}')">
@@ -8642,7 +8976,7 @@
         <div class="card" style="padding:10px 14px; margin-bottom:0;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; ${state.sixCourtStripMinimized ? '' : 'margin-bottom:8px;'}">
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <span style="font-size:0.84rem; font-weight:800; color:var(--text-primary);">🏟️ All 6 Courts Live Floor Strip</span>
+              <span style="font-size:0.84rem; font-weight:800; color:var(--text-primary);">All 6 Courts Live Floor Strip</span>
               <span class="tag ${activeCourtCount > 0 ? 'tag-green' : 'tag-slate'}" style="font-size:0.7rem;">${activeCourtCount}/6 Courts Active</span>
             </div>
             <button type="button" class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:0.72rem;" onclick="toggleSixCourtStrip()">
@@ -8692,7 +9026,7 @@
       if (btnB) btnB.className = `btn btn-sm ${poolFilter === 'Pool B' ? 'btn-primary' : 'btn-outline'}`;
 
       const hideCompleted = Boolean(document.getElementById('step4HideCompletedCheckbox')?.checked);
-      const statusFilter = document.getElementById('step4StatusFilter').value;
+      const statusFilter = document.getElementById('step4StatusFilter')?.value || 'ALL';
       const tbody = document.getElementById('step4GamesTbody');
 
       const filtered = rrGames.filter((g) => {
@@ -8746,11 +9080,11 @@
       const isNextUp = qPos.statusKey === 'NEXT_UP';
       const isCompleted = g.Status === 'COMPLETED';
       const statusTag = isCompleted
-        ? '<span class="tag tag-slate">✓ Completed</span>'
+        ? '<span class="tag tag-slate">Completed</span>'
         : isNowPlaying
-        ? '<span class="tag tag-green">● Now Playing</span>'
+        ? '<span class="tag tag-green">Now Playing</span>'
         : isNextUp
-        ? '<span class="tag tag-amber">⏭️ Next Up</span>'
+        ? '<span class="tag tag-amber">Next Up</span>'
         : g.Status === 'BYE'
         ? '<span class="tag tag-slate">BYE</span>'
         : `<span class="tag tag-blue">Queued${qPos.queueIdx >= 2 ? ` (#${qPos.queueIdx + 1})` : ''}</span>`;
@@ -8781,14 +9115,45 @@
       const isSixTeamBracketRow = isBracketRow && getDivisionQualifiersCount(g.Level) === 6;
       const t1SeedBadge =
         isSixTeamBracketRow && roundLabel === 'Semifinal' && Number(g.Team1Seed) === 1
-          ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span>'
+          ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px; margin-right:4px;">1st Rd Bye</span>'
           : '';
       const t2SeedBadge =
         isSixTeamBracketRow && roundLabel === 'Semifinal' && Number(g.Team2Seed) === 2
-          ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span>'
+          ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px; margin-right:4px;">1st Rd Bye</span>'
           : '';
-      const t1Html = formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD');
-      const t2Html = formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD');
+      const rawRowRound = g.PoolOrRound || g.RoundName || '';
+      const rowIsGold = rawRowRound === 'Final' || String(g.GameID || '').endsWith('-FIN');
+      const rowIsBronze = rawRowRound === 'Bronze Medal' || String(g.GameID || '').endsWith('-BRZ');
+      const rowT1Win = isCompleted && g.WinnerTeamID === g.Team1ID;
+      const rowT2Win = isCompleted && g.WinnerTeamID === g.Team2ID;
+      const rowT1Medal = isCompleted
+        ? rowIsGold
+          ? rowT1Win
+            ? '🥇'
+            : rowT2Win
+            ? '🥈'
+            : ''
+          : rowIsBronze
+          ? rowT1Win
+            ? '🥉'
+            : ''
+          : ''
+        : '';
+      const rowT2Medal = isCompleted
+        ? rowIsGold
+          ? rowT2Win
+            ? '🥇'
+            : rowT1Win
+            ? '🥈'
+            : ''
+          : rowIsBronze
+          ? rowT2Win
+            ? '🥉'
+            : ''
+          : ''
+        : '';
+      const t1Html = formatTeamFocusHtml(g.Team1ID, g.Team1Name || 'TBD', rowT1Medal);
+      const t2Html = formatTeamFocusHtml(g.Team2ID, g.Team2Name || 'TBD', rowT2Medal);
       const targetPts =
         g.TargetPoints || (isBracketRow ? getDivisionBracketPoints(g.Level) : getDivisionRoundRobinPoints(g.Level));
       const winBy = getGameWinBy(g);
@@ -8984,10 +9349,10 @@
               🏆 6-Team Playoff Structure (Top 2 First-Round Byes &amp; Cross-Pool Quarterfinals${includeBronze ? ' + Bronze Medal Match' : ''})
             </div>
             <ul style="font-size:0.84rem; color:var(--text-primary); padding-left:18px; line-height:1.65;">
-              <li><strong>Semifinal 1 (Top 1st-Rd Bye):</strong> <span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span><strong>${escapeHtml(fmtSeed(s1, 'TBD'))}</strong> waits for Winner of <strong>QF1</strong></li>
+              <li><strong>Semifinal 1 (Top 1st-Rd Bye):</strong> <span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px; margin-right:4px;">1st Rd Bye</span><strong>${escapeHtml(fmtSeed(s1, 'TBD'))}</strong> waits for Winner of <strong>QF1</strong></li>
               <li><strong>Quarterfinal 1:</strong> <strong>${escapeHtml(fmtSeed(s4, 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s5, 'BYE'))}</strong></li>
               <li><strong>Quarterfinal 2:</strong> <strong>${escapeHtml(fmtSeed(s3, 'TBD'))}</strong> vs <strong>${escapeHtml(fmtSeed(s6, 'BYE'))}</strong></li>
-              <li><strong>Semifinal 2 (Bottom 1st-Rd Bye):</strong> <span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px; margin-right:4px;">★ 1st Rd Bye</span><strong>${escapeHtml(fmtSeed(s2, 'TBD'))}</strong> waits for Winner of <strong>QF2</strong></li>
+              <li><strong>Semifinal 2 (Bottom 1st-Rd Bye):</strong> <span class="tag tag-amber" style="font-size:0.68rem; padding:1px 6px; margin-right:4px;">1st Rd Bye</span><strong>${escapeHtml(fmtSeed(s2, 'TBD'))}</strong> waits for Winner of <strong>QF2</strong></li>
               <li><strong>🥇 Championship Final:</strong> Winner SF1 vs Winner SF2</li>
               ${includeBronze ? '<li><strong>🥉 Bronze Medal Match (3rd Place):</strong> Loser SF1 vs Loser SF2</li>' : ''}
             </ul>
@@ -9108,12 +9473,28 @@
       const brGames = state.data.games.filter(
         (g) => g.Level === lvl && g.Stage === 'WINNERS_BRACKET'
       );
+      const genBtn = document.getElementById('step5GeneratePlayoffsBtn');
+      if (genBtn) {
+        if (brGames.length > 0) {
+          genBtn.textContent = 'Regenerate Playoff Bracket';
+          genBtn.className = 'btn btn-outline';
+          genBtn.style.background = '#f1f5f9';
+          genBtn.style.color = '#475569';
+          genBtn.style.borderColor = '#cbd5e1';
+        } else {
+          genBtn.textContent = 'Confirm & Generate Playoff Bracket';
+          genBtn.className = 'btn btn-purple';
+          genBtn.style.background = '';
+          genBtn.style.color = '';
+          genBtn.style.borderColor = '';
+        }
+      }
 
       renderStep5BracketTree(lvl, brGames);
 
       const tbody = document.getElementById('step5BracketGamesTbody');
       if (!brGames.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Playoff Bracket has not been generated for ${escapeHtml(lvl)} yet. Click "🏆 Confirm &amp; Generate Playoff Bracket" above when ready to lock in seeds.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Playoff Bracket has not been generated for ${escapeHtml(lvl)} yet. Click "Confirm &amp; Generate Playoff Bracket" above when ready to lock in seeds.</td></tr>`;
         return;
       }
 
@@ -9679,63 +10060,122 @@
                   hasSixTeamByes && roundName === 'Semifinal' && Number(m.Team2Seed) === 2;
                 const t1FullName = formatTeamWithPlayers(m.Team1ID, m.Team1Name || 'TBD');
                 const t2FullName = formatTeamWithPlayers(m.Team2ID, m.Team2Name || 'TBD');
-                const t1FocusHtml = formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD');
-                const t2FocusHtml = formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD');
+                const t1Medal = isDone
+                  ? isGoldFinal
+                    ? t1Win
+                      ? '🥇'
+                      : t2Win
+                      ? '🥈'
+                      : ''
+                    : isBronzeMatch
+                    ? t1Win
+                      ? '🥉'
+                      : ''
+                    : ''
+                  : '';
+                const t2Medal = isDone
+                  ? isGoldFinal
+                    ? t2Win
+                      ? '🥇'
+                      : t1Win
+                      ? '🥈'
+                      : ''
+                    : isBronzeMatch
+                    ? t2Win
+                      ? '🥉'
+                      : ''
+                    : ''
+                  : '';
+                const t1FocusHtml = formatTeamFocusHtml(m.Team1ID, m.Team1Name || 'TBD', t1Medal);
+                const t2FocusHtml = formatTeamFocusHtml(m.Team2ID, m.Team2Name || 'TBD', t2Medal);
 
                 const mPts = m.TargetPoints || getDivisionBracketPoints(lvl);
                 const mWinBy = getGameWinBy(m);
                 const medalCardClass = isGoldFinal
-                  ? 'gold-match'
+                  ? `gold-match${isDone ? ' completed-medal' : ''}`
                   : isBronzeMatch
-                  ? 'bronze-match'
+                  ? `bronze-match${isDone ? ' completed-medal' : ''}`
                   : '';
                 const matchTitleBadge = isGoldFinal
-                  ? '🥇 GOLD MEDAL FINAL'
+                  ? '🥇 GOLD MEDAL'
                   : isBronzeMatch
-                  ? '🥉 BRONZE MEDAL MATCH (3RD PLACE)'
+                  ? '🥉 BRONZE MEDAL'
                   : escapeHtml(m.GameID);
 
                 const effCourt = m.Court || getDefaultCourtForGame(m);
+                const isEditingDone =
+                  isDone && Boolean(state.editingBracketCards && state.editingBracketCards[m.GameID]);
                 const statusRightHtml = isProjCard
                   ? `<span class="tag tag-amber">Projected${effCourt ? ' • ' + escapeHtml(effCourt) : ''}</span>`
                   : isBye
                   ? '<span class="tag tag-amber">BYE</span>'
                   : isLive
-                  ? `<span class="tag tag-green">● Now Playing • ${escapeHtml(effCourt || 'Court')}</span>`
+                  ? `<span class="tag tag-green">Now Playing • ${escapeHtml(effCourt || 'Court')}</span>`
                   : isDone
-                  ? `<span class="tag tag-slate">Final${effCourt ? ' • ' + escapeHtml(effCourt) : ''}</span>`
+                  ? `<span style="display:inline-flex; align-items:center; gap:5px;">
+                       <span class="tag tag-slate">${escapeHtml(effCourt || 'Final')}</span>
+                       <button type="button" class="btn btn-sm btn-outline" style="padding:1px 7px; font-size:0.68rem;" onclick="toggleEditBracketCard('${escapeHtml(m.GameID)}')">${isEditingDone ? 'Cancel' : 'Edit'}</button>
+                     </span>`
                   : qPos.statusKey === 'NEXT_UP'
-                  ? `<span class="tag tag-amber">⏭️ Next Up • ${escapeHtml(effCourt || 'Court')}</span>`
+                  ? `<span class="tag tag-amber">Next Up • ${escapeHtml(effCourt || 'Court')}</span>`
                   : escapeHtml(effCourt || 'Court TBD');
 
                 const nextMainGameId = getMainBracketTargetGameId(m, qfCount);
+                const t1RowClass =
+                  isDone && isGoldFinal
+                    ? t1Win
+                      ? 'gold-winner'
+                      : t2Win
+                      ? 'silver-runnerup'
+                      : ''
+                    : isDone && isBronzeMatch
+                    ? t1Win
+                      ? 'bronze-winner'
+                      : ''
+                    : t1Win || (isBye && m.Team1ID !== 'BYE')
+                    ? 'winner'
+                    : '';
+                const t2RowClass =
+                  isDone && isGoldFinal
+                    ? t2Win
+                      ? 'gold-winner'
+                      : t1Win
+                      ? 'silver-runnerup'
+                      : ''
+                    : isDone && isBronzeMatch
+                    ? t2Win
+                      ? 'bronze-winner'
+                      : ''
+                    : t2Win
+                    ? 'winner'
+                    : '';
 
                 const cardHtml = `
-                  <div class="bracket-match-card ${isLive ? 'live' : ''} ${medalCardClass}" data-game-id="${escapeHtml(m.GameID)}" data-next-game-id="${escapeHtml(nextMainGameId)}">
+                  <div class="bracket-match-card ${isLive && !isGoldFinal && !isBronzeMatch ? 'live' : ''} ${medalCardClass}" data-game-id="${escapeHtml(m.GameID)}" data-next-game-id="${escapeHtml(nextMainGameId)}">
                     <div class="bracket-match-header">
                       <span class="mono" style="font-weight:800;">${matchTitleBadge} • To ${mPts} (Win by ${mWinBy})</span>
                       <span>${statusRightHtml}</span>
                     </div>
-                    <div class="bracket-team-row ${t1Win || (isBye && m.Team1ID !== 'BYE') ? 'winner' : ''}">
+                    <div class="bracket-team-row ${t1RowClass}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;" title="${escapeHtml(t1FullName)}">
                         <div style="min-width:0; flex:1;">
                           <span>${t1FocusHtml}</span>
-                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">★ 1st Rd Bye</span>' : ''}
+                          ${t1HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score1 !== '' ? m.Score1 : ''}</strong>
                     </div>
-                    <div class="bracket-team-row ${t2Win ? 'winner' : ''}">
+                    <div class="bracket-team-row ${t2RowClass}">
                       <div style="min-width:0; flex:1; display:flex; align-items:flex-start; gap:6px;" title="${escapeHtml(t2FullName)}">
                         <div style="min-width:0; flex:1;">
                           <span>${t2FocusHtml}</span>
-                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">★ 1st Rd Bye</span>' : ''}
+                          ${t2HasByeBadge ? '<span class="tag tag-amber" style="font-size:0.64rem; padding:1px 6px;">1st Rd Bye</span>' : ''}
                         </div>
                       </div>
                       <strong class="mono" style="flex-shrink:0;">${m.Score2 !== '' ? m.Score2 : ''}</strong>
                     </div>
                     ${
-                      !isBye && !isProjCard
+                      !isBye && !isProjCard && (!isDone || isEditingDone)
                         ? `
                         <div class="bracket-card-controls">
                           <div class="bracket-ctrl-row">
@@ -9748,13 +10188,8 @@
                             <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700;">-</span>
                             <input id="bracketScore2_${escapeHtml(m.GameID)}" type="number" class="input mono" style="width:52px; padding:3px 5px; font-size:0.76rem; text-align:center;" value="${m.Score2 !== '' ? m.Score2 : ''}" placeholder="0">
                             <button type="button" class="btn btn-sm btn-primary" style="flex:1; padding:4px 8px; font-size:0.72rem;" onclick="handleBracketSaveScore('${escapeHtml(m.GameID)}')">
-                              💾 Save
+                              Save
                             </button>
-                            ${
-                              isDone
-                                ? `<button type="button" class="btn btn-sm btn-secondary" style="padding:4px 7px; font-size:0.72rem;" title="Reset score &amp; status back to Scheduled" onclick="handleResetGameScore('${escapeHtml(m.GameID)}')">↺</button>`
-                                : ''
-                            }
                           </div>
                         </div>
                       `
@@ -9785,6 +10220,16 @@
         </div>
       `;
       requestAnimationFrame(drawAllBracketConnectors);
+    }
+
+    function toggleEditBracketCard(gameId) {
+      if (!state.editingBracketCards) state.editingBracketCards = {};
+      if (state.editingBracketCards[gameId]) {
+        delete state.editingBracketCards[gameId];
+      } else {
+        state.editingBracketCards[gameId] = true;
+      }
+      renderStep5Section();
     }
 
     async function handleUpdateGameCourt(gameId, newCourt) {
@@ -9828,6 +10273,9 @@
         return;
       }
       try {
+        if (state.editingBracketCards) {
+          delete state.editingBracketCards[gameId];
+        }
         const data = await callBackend('adminForceScore', gameId, Number(s1), Number(s2));
         applyTournamentData(data);
         showToast(`Recorded official score for ${gameId}`);
